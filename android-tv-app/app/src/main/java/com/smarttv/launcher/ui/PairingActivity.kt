@@ -32,8 +32,10 @@ class PairingActivity : AppCompatActivity() {
         requestPairingCode()
     }
 
+    private var checkRunnable: Runnable? = null
+
     private fun requestPairingCode() {
-        val deviceId = SmartTVApp.instance.getDeviceId()
+        val deviceId = SmartTVApp.instance.getTvDeviceId()
         val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -67,9 +69,9 @@ class PairingActivity : AppCompatActivity() {
         if (isChecking) return
         isChecking = true
 
-        val checkRunnable = object : Runnable {
+        checkRunnable = object : Runnable {
             override fun run() {
-                val deviceId = SmartTVApp.instance.getDeviceId()
+                val deviceId = SmartTVApp.instance.getTvDeviceId()
                 val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
 
                 lifecycleScope.launch(Dispatchers.IO) {
@@ -84,12 +86,12 @@ class PairingActivity : AppCompatActivity() {
                     } catch (_: Exception) {}
 
                     if (isChecking) {
-                        handler.postDelayed(this@run, 3000)
+                        checkRunnable?.let { handler.postDelayed(it, 3000) }
                     }
                 }
             }
         }
-        handler.postDelayed(checkRunnable, 3000)
+        checkRunnable?.let { handler.postDelayed(it, 3000) }
     }
 
     private fun goToMain() {
@@ -104,5 +106,6 @@ class PairingActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         isChecking = false
+        checkRunnable?.let { handler.removeCallbacks(it) }
     }
 }

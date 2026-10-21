@@ -86,7 +86,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadConfigAndSetup() {
-        val deviceId = SmartTVApp.instance.getDeviceId()
+        val deviceId = SmartTVApp.instance.getTvDeviceId()
         val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -231,7 +231,7 @@ class MainActivity : AppCompatActivity() {
     private fun startHeartbeatLoop() {
         handler.postDelayed(object : Runnable {
             override fun run() {
-                val deviceId = SmartTVApp.instance.getDeviceId()
+                val deviceId = SmartTVApp.instance.getTvDeviceId()
                 val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
 
                 lifecycleScope.launch(Dispatchers.IO) {

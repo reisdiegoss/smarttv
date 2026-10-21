@@ -20,13 +20,13 @@ class SmartTVApp : Application() {
         prefs = getSharedPreferences("smarttv_prefs", Context.MODE_PRIVATE)
 
         // Gera ou recupera um Device ID único persistente para esta TV
-        if (getDeviceId().isEmpty()) {
+        if (getTvDeviceId().isEmpty()) {
             val generatedId = "TV-" + UUID.randomUUID().toString().substring(0, 8).uppercase()
             prefs.edit().putString("device_id", generatedId).apply()
         }
     }
 
-    fun getDeviceId(): String {
+    fun getTvDeviceId(): String {
         return prefs.getString("device_id", "") ?: ""
     }
 
