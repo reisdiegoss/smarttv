@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.models.schema import Media
 from app.models.dto import MediaOut
+from app.services.audit import record_audit_log
 
 router = APIRouter(prefix="/media", tags=["Media"])
 
@@ -27,6 +28,7 @@ async def list_media(db: AsyncSession = Depends(get_db)):
 
 @router.post("/upload", response_model=MediaOut)
 async def upload_media(
+    request: Request,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db)
 ):
@@ -60,6 +62,27 @@ async def upload_media(
         duration=0.0 # Can be extracted with ffprobe if present
     )
     db.add(media)
+    await db.flush()
+
+    new_values = {
+        "title": media.title,
+        "original_filename": media.original_filename,
+        "file_size": media.file_size,
+        "mime_type": media.mime_type
+    }
+
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="MEDIA_UPLOAD",
+        entity="Media",
+        entity_id=str(media.id),
+        entity_name=media.title,
+        description=f"Upload do vídeo '{media.original_filename}' ({file_size} bytes)",
+        old_values={},
+        new_values=new_values
+    )
+
     await db.commit()
     await db.refresh(media)
 
@@ -68,17 +91,35 @@ async def upload_media(
     return out
 
 @router.delete("/{media_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_media(media_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_media(media_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Media).where(Media.id == media_id))
     media = result.scalar_one_or_none()
     if not media:
         raise HTTPException(status_code=404, detail="Mídia não encontrada")
+
+    old_values = {
+        "title": media.title,
+        "original_filename": media.original_filename,
+        "file_size": media.file_size
+    }
 
     if os.path.exists(media.file_path):
         try:
             os.remove(media.file_path)
         except OSError:
             pass
+
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="MEDIA_DELETE",
+        entity="Media",
+        entity_id=str(media.id),
+        entity_name=media.title,
+        description=f"Exclusão da mídia '{media.title}'",
+        old_values=old_values,
+        new_values={}
+    )
 
     await db.delete(media)
     await db.commit()

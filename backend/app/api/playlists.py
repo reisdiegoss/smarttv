@@ -1,11 +1,12 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.schema import Playlist, PlaylistItem, Media
 from app.models.dto import PlaylistCreate, PlaylistUpdate, PlaylistOut, MediaOut
+from app.services.audit import record_audit_log
 
 router = APIRouter(prefix="/playlists", tags=["Playlists"])
 
@@ -28,7 +29,7 @@ async def list_playlists(db: AsyncSession = Depends(get_db)):
     return out
 
 @router.post("", response_model=PlaylistOut, status_code=status.HTTP_201_CREATED)
-async def create_playlist(payload: PlaylistCreate, db: AsyncSession = Depends(get_db)):
+async def create_playlist(payload: PlaylistCreate, request: Request, db: AsyncSession = Depends(get_db)):
     playlist = Playlist(
         name=payload.name,
         description=payload.description,
@@ -46,6 +47,25 @@ async def create_playlist(payload: PlaylistCreate, db: AsyncSession = Depends(ge
                 duration_override=item.duration_override
             )
             db.add(p_item)
+
+    new_values = {
+        "name": payload.name,
+        "description": payload.description,
+        "loop_playback": payload.loop_playback,
+        "items_count": len(payload.items) if payload.items else 0
+    }
+
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="PLAYLIST_CREATE",
+        entity="Playlist",
+        entity_id=str(playlist.id),
+        entity_name=playlist.name,
+        description=f"Playlist '{playlist.name}' criada",
+        old_values={},
+        new_values=new_values
+    )
 
     await db.commit()
 
@@ -82,6 +102,7 @@ async def get_playlist(playlist_id: int, db: AsyncSession = Depends(get_db)):
 async def update_playlist(
     playlist_id: int,
     payload: PlaylistUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
@@ -92,6 +113,14 @@ async def update_playlist(
     playlist = result.scalar_one_or_none()
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist não encontrada")
+
+    old_values = {
+        "name": playlist.name,
+        "description": playlist.description,
+        "is_active": playlist.is_active,
+        "loop_playback": playlist.loop_playback,
+        "items_count": len(playlist.items)
+    }
 
     if payload.name is not None:
         playlist.name = payload.name
@@ -114,6 +143,25 @@ async def update_playlist(
             )
             db.add(p_item)
 
+    new_values = {
+        "name": playlist.name,
+        "description": playlist.description,
+        "is_active": playlist.is_active,
+        "loop_playback": playlist.loop_playback,
+        "items_count": len(payload.items) if payload.items is not None else old_values["items_count"]
+    }
+
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="PLAYLIST_UPDATE",
+        entity="Playlist",
+        entity_id=str(playlist.id),
+        entity_name=playlist.name,
+        old_values=old_values,
+        new_values=new_values
+    )
+
     await db.commit()
 
     result = await db.execute(
@@ -129,11 +177,28 @@ async def update_playlist(
     return p_dto
 
 @router.delete("/{playlist_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_playlist(playlist_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_playlist(playlist_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Playlist).where(Playlist.id == playlist_id))
     playlist = result.scalar_one_or_none()
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist não encontrada")
+
+    old_values = {
+        "name": playlist.name,
+        "description": playlist.description
+    }
+
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="PLAYLIST_DELETE",
+        entity="Playlist",
+        entity_id=str(playlist.id),
+        entity_name=playlist.name,
+        description=f"Playlist '{playlist.name}' excluída",
+        old_values=old_values,
+        new_values={}
+    )
 
     await db.delete(playlist)
     await db.commit()

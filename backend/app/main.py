@@ -7,12 +7,14 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import engine, Base, AsyncSessionLocal
-from app.models.schema import LayoutPreset, AppShortcut, SmartTV, Playlist, PlaylistItem, Media
+from app.models.schema import LayoutPreset, AppShortcut, SmartTV, Playlist, PlaylistItem, Media, User
 from app.api.layouts import DEFAULT_LAYOUTS, router as layouts_router
 from app.api.shortcuts import DEFAULT_SHORTCUTS, router as shortcuts_router
 from app.api.media import router as media_router
 from app.api.playlists import router as playlists_router
 from app.api.tvs import router as tvs_router
+from app.api.auth import router as auth_router
+from app.services.audit import hash_password
 
 # WebSocket connection manager for live dashboard updates
 class ConnectionManager:
@@ -179,6 +181,21 @@ async def seed_initial_data():
             await session.commit()
             print("[SEED] Base de dados inicializada com sucesso!")
 
+        # 5. Seed default admin user if not exists
+        existing_admin = await session.execute(select(User).where(User.username == "admin"))
+        if not existing_admin.scalars().first():
+            print("[SEED] Criando usuário administrador padrão (admin / @Fasano2026!)...")
+            admin_user = User(
+                username="admin",
+                password_hash=hash_password("@Fasano2026!"),
+                full_name="Administrador Smart TV",
+                email="admin@fasanobr.local",
+                role="admin",
+                is_active=True
+            )
+            session.add(admin_user)
+            await session.commit()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -207,6 +224,7 @@ app.add_middleware(
 )
 
 # API Routers
+app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(tvs_router, prefix=settings.API_V1_STR)
 app.include_router(media_router, prefix=settings.API_V1_STR)
 app.include_router(playlists_router, prefix=settings.API_V1_STR)

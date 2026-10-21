@@ -2,12 +2,13 @@ import random
 import string
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.schema import SmartTV, LayoutPreset, Playlist, PlaylistItem, AppShortcut, DeviceLog
+from app.services.audit import record_audit_log
 from app.models.dto import (
     SmartTVOut, SmartTVCreate, SmartTVUpdate,
     SmartTVPairRequest, SmartTVClaimRequest, SmartTVPingRequest,
@@ -44,7 +45,7 @@ async def list_tvs(db: AsyncSession = Depends(get_db)):
     return tvs
 
 @router.post("", response_model=SmartTVOut, status_code=status.HTTP_201_CREATED)
-async def create_tv(payload: SmartTVCreate, db: AsyncSession = Depends(get_db)):
+async def create_tv(payload: SmartTVCreate, request: Request, db: AsyncSession = Depends(get_db)):
     # Check if device_id already exists
     existing = await db.execute(select(SmartTV).where(SmartTV.device_id == payload.device_id))
     if existing.scalar_one_or_none():
@@ -66,6 +67,26 @@ async def create_tv(payload: SmartTVCreate, db: AsyncSession = Depends(get_db)):
     )
     db.add(tv)
     await db.commit()
+
+    # Grava auditoria
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="TV_CREATE",
+        entity="SmartTV",
+        entity_id=str(tv.id),
+        entity_name=tv.name,
+        new_values={
+            "name": tv.name,
+            "room_group": tv.room_group,
+            "layout_id": tv.layout_id,
+            "playlist_id": tv.playlist_id,
+            "hdmi_input_id": tv.hdmi_input_id,
+            "hdmi_label": tv.hdmi_label,
+            "selected_shortcuts": tv.selected_shortcuts,
+            "custom_settings": tv.custom_settings
+        }
+    )
 
     result = await db.execute(
         select(SmartTV)
@@ -96,7 +117,7 @@ async def get_tv(tv_id: int, db: AsyncSession = Depends(get_db)):
     return tv
 
 @router.put("/{tv_id}", response_model=SmartTVOut)
-async def update_tv(tv_id: int, payload: SmartTVUpdate, db: AsyncSession = Depends(get_db)):
+async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SmartTV)
         .options(selectinload(SmartTV.layout), selectinload(SmartTV.playlist))
@@ -105,6 +126,18 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, db: AsyncSession = Depen
     tv = result.scalar_one_or_none()
     if not tv:
         raise HTTPException(status_code=404, detail="TV não encontrada")
+
+    # Captura o estado anterior ("O que era antes")
+    old_values = {
+        "name": tv.name,
+        "room_group": tv.room_group,
+        "layout_id": tv.layout_id,
+        "playlist_id": tv.playlist_id,
+        "hdmi_input_id": tv.hdmi_input_id,
+        "hdmi_label": tv.hdmi_label,
+        "selected_shortcuts": list(tv.selected_shortcuts or []),
+        "custom_settings": dict(tv.custom_settings or {})
+    }
 
     if payload.name is not None:
         tv.name = payload.name
@@ -129,6 +162,30 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, db: AsyncSession = Depen
     tv.updated_at = datetime.utcnow()
     await db.commit()
 
+    # Captura o novo estado ("O que foi alterado")
+    new_values = {
+        "name": tv.name,
+        "room_group": tv.room_group,
+        "layout_id": tv.layout_id,
+        "playlist_id": tv.playlist_id,
+        "hdmi_input_id": tv.hdmi_input_id,
+        "hdmi_label": tv.hdmi_label,
+        "selected_shortcuts": list(tv.selected_shortcuts or []),
+        "custom_settings": dict(tv.custom_settings or {})
+    }
+
+    # Grava auditoria detalhada com IP, Data, Hora, Antes e Depois
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="TV_UPDATE",
+        entity="SmartTV",
+        entity_id=str(tv.id),
+        entity_name=tv.name,
+        old_values=old_values,
+        new_values=new_values
+    )
+
     result = await db.execute(
         select(SmartTV)
         .options(selectinload(SmartTV.layout), selectinload(SmartTV.playlist))
@@ -137,11 +194,31 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, db: AsyncSession = Depen
     return result.scalar_one()
 
 @router.delete("/{tv_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_tv(tv_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_tv(tv_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(SmartTV).where(SmartTV.id == tv_id))
     tv = result.scalar_one_or_none()
     if not tv:
         raise HTTPException(status_code=404, detail="TV não encontrada")
+
+    old_values = {
+        "name": tv.name,
+        "room_group": tv.room_group,
+        "device_id": tv.device_id,
+        "ip_address": tv.ip_address,
+        "hdmi_input_id": tv.hdmi_input_id
+    }
+
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="TV_DELETE",
+        entity="SmartTV",
+        entity_id=str(tv.id),
+        entity_name=tv.name,
+        old_values=old_values,
+        new_values={}
+    )
+
     await db.delete(tv)
     await db.commit()
     return None
@@ -184,11 +261,21 @@ async def pair_request(payload: SmartTVPairRequest, db: AsyncSession = Depends(g
 
 # Claim Endpoint (Called by Admin in Dashboard to approve and assign a TV)
 @router.post("/claim")
-async def claim_tv(payload: SmartTVClaimRequest, db: AsyncSession = Depends(get_db)):
+async def claim_tv(payload: SmartTVClaimRequest, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(SmartTV).where(SmartTV.pairing_code == payload.pairing_code.strip().upper()))
     tv = result.scalar_one_or_none()
     if not tv:
         raise HTTPException(status_code=404, detail="Código de pareamento não encontrado")
+
+    old_values = {
+        "name": tv.name,
+        "room_group": tv.room_group,
+        "is_paired": tv.is_paired,
+        "layout_id": tv.layout_id,
+        "playlist_id": tv.playlist_id,
+        "hdmi_input_id": tv.hdmi_input_id,
+        "hdmi_label": tv.hdmi_label
+    }
 
     tv.name = payload.name
     tv.room_group = payload.room_group or tv.room_group
@@ -201,9 +288,31 @@ async def claim_tv(payload: SmartTVClaimRequest, db: AsyncSession = Depends(get_
     tv.is_paired = True
     tv.updated_at = datetime.utcnow()
 
+    new_values = {
+        "name": tv.name,
+        "room_group": tv.room_group,
+        "is_paired": tv.is_paired,
+        "layout_id": tv.layout_id,
+        "playlist_id": tv.playlist_id,
+        "hdmi_input_id": tv.hdmi_input_id,
+        "hdmi_label": tv.hdmi_label
+    }
+
     # Log device pair
     log = DeviceLog(tv_id=tv.id, event_type="PAIR", message=f"TV pareada com o nome '{tv.name}'")
     db.add(log)
+
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="TV_CLAIM",
+        entity="SmartTV",
+        entity_id=str(tv.id),
+        entity_name=tv.name,
+        description=f"TV pareada e ativada pelo código '{payload.pairing_code}' com o nome '{tv.name}'",
+        old_values=old_values,
+        new_values=new_values
+    )
 
     await db.commit()
     await db.refresh(tv)

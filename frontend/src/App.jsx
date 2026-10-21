@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Tv, MonitorPlay, Film, Layers, Radio, Plus, RefreshCw, 
   Settings, CheckCircle2, AlertCircle, Wifi, Play, Edit, 
-  Trash2, QrCode, HardDrive, Eye, ExternalLink, Cpu
+  Trash2, QrCode, HardDrive, Eye, ExternalLink, Cpu,
+  Shield, Download, LogOut, User as UserIcon
 } from 'lucide-react';
 
 import TVSimulator from './components/TVSimulator';
@@ -10,9 +11,28 @@ import TVModal from './components/TVModal';
 import PairModal from './components/PairModal';
 import PlaylistModal from './components/PlaylistModal';
 import BrandAppIcon from './components/BrandAppIcon';
+import LoginView from './components/LoginView';
+import AuditTrailView from './components/AuditTrailView';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'tvs', 'simulator', 'playlists', 'layouts', 'shortcuts'
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('smarttv_token'));
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const u = localStorage.getItem('smarttv_user');
+      return u ? JSON.parse(u) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  const handleLogout = () => {
+    localStorage.removeItem('smarttv_token');
+    localStorage.removeItem('smarttv_user');
+    setAuthToken(null);
+    setCurrentUser(null);
+  };
+
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'tvs', 'simulator', 'playlists', 'layouts', 'shortcuts', 'audit'
   const [tvs, setTvs] = useState([]);
   const [layouts, setLayouts] = useState([]);
   const [playlists, setPlaylists] = useState([]);
@@ -57,6 +77,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!authToken) return;
     loadData();
     const interval = setInterval(loadData, 10000); // Polling every 10s
 
@@ -80,7 +101,7 @@ export default function App() {
       clearInterval(interval);
       ws.close();
     };
-  }, []);
+  }, [authToken]);
 
   // TV Save / Update
   const handleSaveTv = async (tvData) => {
@@ -199,6 +220,17 @@ export default function App() {
   const currentSimulatorLayout = layouts.find(l => l.id === currentSimulatorTv?.layout_id) || layouts[0] || null;
   const currentSimulatorPlaylist = playlists.find(p => p.id === currentSimulatorTv?.playlist_id) || playlists[0] || null;
 
+  if (!authToken) {
+    return (
+      <LoginView 
+        onLoginSuccess={(token, user) => {
+          setAuthToken(token);
+          setCurrentUser(user);
+        }} 
+      />
+    );
+  }
+
   return (
     <div className="app-container">
       {/* SIDEBAR NAVIGATION */}
@@ -254,6 +286,12 @@ export default function App() {
           >
             <Radio size={18} /> Apps & HDMI SKY
           </div>
+          <div 
+            className={`nav-item ${activeTab === 'audit' ? 'active' : ''}`}
+            onClick={() => setActiveTab('audit')}
+          >
+            <Shield size={18} /> Trilha de Auditoria
+          </div>
         </nav>
 
         <div className="sidebar-footer">
@@ -295,6 +333,7 @@ export default function App() {
               {activeTab === 'playlists' && 'Playlists & Mídias de Vídeo'}
               {activeTab === 'layouts' && 'Personalizador de Layouts da Launcher'}
               {activeTab === 'shortcuts' && 'Configurações de Apps & Entrada HDMI SKY'}
+              {activeTab === 'audit' && 'Trilha de Auditoria do Sistema'}
             </h1>
             <p className="page-subtitle">
               {activeTab === 'dashboard' && 'Status das TVs na rede, reprodução de vídeo e controle individualizado.'}
@@ -303,10 +342,29 @@ export default function App() {
               {activeTab === 'playlists' && 'Gerencie os vídeos MP4 que rodam em sequência contínua no APK.'}
               {activeTab === 'layouts' && 'Escolha entre Luxo Hotel, Split Screen, Vitrine ou Mural Digital.'}
               {activeTab === 'shortcuts' && 'Mapeamento de pacotes Android (Netflix, YouTube) e porta HDMI Sky.'}
+              {activeTab === 'audit' && 'Histórico completo de auditoria com IP, data/hora, o que era antes e o que foi alterado.'}
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <a 
+              href="/smarttv-launcher.apk" 
+              download="smarttv-launcher.apk"
+              className="btn btn-secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'rgba(59, 130, 246, 0.12)',
+                borderColor: 'rgba(59, 130, 246, 0.35)',
+                color: '#60a5fa',
+                textDecoration: 'none'
+              }}
+              title="Baixar APK instalador da Launcher para Android / Google TV"
+            >
+              <Download size={16} /> Baixar APK da TV
+            </a>
+
             <button 
               className="btn btn-secondary"
               onClick={() => setIsPairModalOpen(true)}
@@ -319,6 +377,45 @@ export default function App() {
             >
               <Plus size={16} /> Nova TV
             </button>
+
+            {/* User Session & Logout */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              paddingLeft: 12,
+              borderLeft: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: '0.82rem',
+                color: '#cbd5e1'
+              }}>
+                <div style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: 'rgba(59, 130, 246, 0.25)',
+                  color: '#60a5fa',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <UserIcon size={14} />
+                </div>
+                <span>{currentUser?.username || 'admin'}</span>
+              </div>
+              <button 
+                className="btn btn-secondary btn-sm"
+                onClick={handleLogout}
+                title="Sair do sistema"
+                style={{ padding: '6px 8px', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -750,6 +847,11 @@ export default function App() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* VIEW 7: AUDIT TRAIL */}
+        {activeTab === 'audit' && (
+          <AuditTrailView />
         )}
       </main>
 

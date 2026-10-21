@@ -137,3 +137,36 @@ class DeviceLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     tv = relationship("SmartTV", back_populates="logs")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(100), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(150), default="Administrador")
+    email = Column(String(150), nullable=True)
+    role = Column(String(50), default="admin") # "admin", "operator"
+    is_active = Column(Boolean, default=True)
+    last_login = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    username = Column(String(100), nullable=False, default="admin")
+    ip_address = Column(String(100), nullable=False) # IP de quem realizou a alteração
+    action = Column(String(50), nullable=False) # "TV_UPDATE", "TV_CREATE", "TV_DELETE", "PLAYLIST_UPDATE", "MEDIA_UPLOAD", "AUTH_LOGIN"
+    entity = Column(String(50), nullable=False) # "SmartTV", "Playlist", "Media", "Layout", "Auth"
+    entity_id = Column(String(100), nullable=True)
+    entity_name = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    old_values = Column(JSON, default=dict) # O que era antes
+    new_values = Column(JSON, default=dict) # O que foi alterado
+    diff_summary = Column(JSON, default=list) # [{field, label, before, after}]
+    created_at = Column(DateTime, default=datetime.utcnow) # Data e Hora com timezone/UTC
+
