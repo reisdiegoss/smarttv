@@ -10,9 +10,9 @@ def run(cmd):
         print(r.stderr.strip())
     return r.returncode
 
-print("=== ENVIANDO FIX DE DEPENDENCIAS E WORKFLOW ===")
+print("=== ENVIANDO FIX DE DESUGARING E COMPATIBILIDADE JAVA 1.8 ===")
 run("git add -A")
-run('git commit -m "fix(build): add media3-database dependency and direct gradle install without cache outage"')
+run('git commit -m "fix(android): enable core library desugaring and Java 1.8 compatibility for minSdk 21"')
 code = run("git push origin main")
 if code == 0:
     print("=== PUSH CONCLUIDO COM SUCESSO! ===")

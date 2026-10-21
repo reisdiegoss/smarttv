@@ -58,7 +58,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.0
+          tag_name: latest
+          make_latest: true
           name: "SmartTV Launcher APK (Mais Recente)"
           body: |
             ### SmartTV Manager Launcher (Android TV / Google TV)
