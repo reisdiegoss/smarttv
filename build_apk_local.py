@@ -1,0 +1,68 @@
+import os
+import subprocess
+import shutil
+import sys
+
+print("=== INICIANDO BUILD LOCAL DO APK VIA GRADLEW ===")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+APP_DIR = os.path.join(BASE_DIR, "android-tv-app")
+
+env = os.environ.copy()
+jbr_path = r"C:\Program Files\Android\Android Studio\jbr"
+if os.path.exists(jbr_path):
+    env["JAVA_HOME"] = jbr_path
+    env["PATH"] = os.path.join(jbr_path, "bin") + ";" + env.get("PATH", "")
+
+print(f"Diretório: {APP_DIR}")
+print(f"JAVA_HOME: {env.get('JAVA_HOME')}")
+
+cmd = r".\gradlew.bat assembleDebug --stacktrace"
+print(f">> Executando: {cmd}")
+
+process = subprocess.Popen(
+    cmd,
+    cwd=APP_DIR,
+    shell=True,
+    env=env,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    text=True,
+    bufsize=1
+)
+
+output_lines = []
+for line in process.stdout:
+    sys.stdout.write(line)
+    sys.stdout.flush()
+    output_lines.append(line)
+
+process.wait()
+
+with open(os.path.join(BASE_DIR, "local_build.log"), "w", encoding="utf-8") as f:
+    f.writelines(output_lines)
+
+if process.returncode != 0:
+    print(f"\n[FALHA] NO BUILD LOCAL (codigo {process.returncode})")
+    sys.exit(process.returncode)
+
+print("\n[SUCESSO] BUILD REALIZADO COM SUCESSO!")
+
+apk_src = os.path.join(APP_DIR, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
+if os.path.exists(apk_src):
+    size_mb = os.path.getsize(apk_src) / (1024 * 1024)
+    print(f"APK Gerado: {apk_src} ({size_mb:.2f} MB)")
+
+    # 1. Copia para o frontend público para download direto no sistema
+    dist_dir = os.path.join(BASE_DIR, "frontend", "dist")
+    os.makedirs(dist_dir, exist_ok=True)
+    dest_dist = os.path.join(dist_dir, "smarttv-launcher.apk")
+    shutil.copy2(apk_src, dest_dist)
+    print(f"Copiado para o sistema web: {dest_dist}")
+
+    # 2. Copia para a raiz como atalho
+    root_apk = os.path.join(BASE_DIR, "smarttv-launcher.apk")
+    shutil.copy2(apk_src, root_apk)
+    print(f"Copiado para a raiz: {root_apk}")
+
+else:
+    print(f"Aviso: Arquivo {apk_src} não encontrado após o build.")

@@ -51,3 +51,4 @@ uploads/videos/*.webm
 *.swp
 .DS_Store
 Thumbs.db
+local_build.log
