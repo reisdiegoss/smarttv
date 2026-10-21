@@ -162,7 +162,7 @@ class MainActivity : AppCompatActivity() {
         btnSky.isFocusable = true
         containerShortcuts.addView(btnSky)
 
-        // Demais aplicativos configurados para esta TV
+        // Demais aplicativos configurados para esta TV (puxa ícones nativos instalados na TV)
         for (sc in config.shortcuts) {
             if (sc.isHdmi) continue
 
@@ -172,6 +172,22 @@ class MainActivity : AppCompatActivity() {
 
             textApp.text = sc.name
             btnApp.setBackgroundResource(R.drawable.bg_shortcut_item)
+
+            // Puxa o Banner ou Ícone oficial já instalado no sistema Android da TV!
+            try {
+                val banner = packageManager.getApplicationBanner(sc.packageName)
+                val icon = packageManager.getApplicationIcon(sc.packageName)
+                if (banner != null) {
+                    iconApp.setImageDrawable(banner)
+                } else if (icon != null) {
+                    iconApp.setImageDrawable(icon)
+                } else {
+                    iconApp.setImageResource(R.drawable.ic_hdmi_tv)
+                }
+            } catch (e: Exception) {
+                // Se o pacote ainda não estiver instalado no momento, usa fallback
+                iconApp.setImageResource(R.drawable.ic_hdmi_tv)
+            }
 
             btnApp.setOnClickListener {
                 AppLauncherManager.launchApp(this, sc.packageName)

@@ -1,0 +1,54 @@
+# Python
+venv/
+backend/venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.npm
+.eslintcache
+.stylelintcache
+
+# Android
+.gradle/
+android-tv-app/.gradle/
+android-tv-app/build/
+android-tv-app/app/build/
+*.apk
+*.aab
+local.properties
+
+# Environment and uploads
+.env
+uploads/videos/*.mp4
+uploads/videos/*.mkv
+uploads/videos/*.webm
+!uploads/videos/demo_nature_4k.mp4
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
