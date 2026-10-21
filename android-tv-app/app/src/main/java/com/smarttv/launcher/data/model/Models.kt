@@ -15,6 +15,7 @@ data class TVConfigResponse(
 )
 
 data class HdmiConfig(
+    @SerializedName("enabled") val enabled: Boolean = true,
     @SerializedName("input_id") val inputId: String,
     @SerializedName("label") val label: String,
     @SerializedName("action") val action: String
@@ -92,4 +93,11 @@ data class BindDeviceResponse(
     @SerializedName("message") val message: String,
     @SerializedName("device_id") val deviceId: String,
     @SerializedName("tv_id") val tvId: Int
+)
+
+data class QuickUpdateRequest(
+    @SerializedName("device_id") val deviceId: String,
+    @SerializedName("hdmi_input_id") val hdmiInputId: String? = null,
+    @SerializedName("hdmi_label") val hdmiLabel: String? = null,
+    @SerializedName("selected_shortcuts") val selectedShortcuts: List<Int>? = null
 )

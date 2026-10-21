@@ -51,16 +51,35 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutDock: View
     private lateinit var containerShortcuts: LinearLayout
 
-    // Pairing / Setup UI elements
+    // Overlay Container & Header
     private lateinit var layoutPairing: View
+    private lateinit var tvOverlayTitle: TextView
     private lateinit var tvServerStatus: TextView
+
+    // Mode 1: Initial Pairing (Unpaired)
+    private lateinit var panelPairingUnpaired: View
     private lateinit var tvPairingCode: TextView
     private lateinit var tvPairingStatus: TextView
     private lateinit var tvDeviceIdInfo: TextView
     private lateinit var containerAvailableTvs: LinearLayout
 
+    // Mode 2: In-App TV Settings (Paired - accessible via MENU key)
+    private lateinit var panelPairingSettings: View
+    private lateinit var tvCurrentHdmiState: TextView
+    private lateinit var btnHdmi1: Button
+    private lateinit var btnHdmi2: Button
+    private lateinit var btnHdmi3: Button
+    private lateinit var btnHdmiNone: Button
+    private lateinit var btnSettingsSwitchRoom: Button
+    private lateinit var containerSettingsApps: LinearLayout
+    private lateinit var btnSettingsDone: Button
+
     private val handler = Handler(Looper.getMainLooper())
     private var currentConfig: TVConfigResponse? = null
+    private var allSystemApps: List<ShortcutItem> = emptyList()
+    private var selectedAppIds: MutableSet<Int> = mutableSetOf()
+    private var currentHdmiPort: String = "HDMI 1"
+    private var lastConfigUpdatedAt: String? = null
     private var autoHideRunnable: Runnable? = null
     private var isDockVisible = true
     private var isPollingPairStatus = false
@@ -70,7 +89,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Inicializa elementos da tela de exibição (Launcher)
+        // Elementos da tela de exibição (Launcher)
         playerView = findViewById(R.id.playerView)
         layoutHeader = findViewById(R.id.layoutHeader)
         tvTitle = findViewById(R.id.tvTitle)
@@ -81,16 +100,32 @@ class MainActivity : AppCompatActivity() {
         layoutDock = findViewById(R.id.layoutDock)
         containerShortcuts = findViewById(R.id.containerShortcuts)
 
-        // Inicializa elementos da tela de configuração / pareamento
+        // Overlay Container & Header
         layoutPairing = findViewById(R.id.layoutPairing)
+        tvOverlayTitle = findViewById(R.id.tvOverlayTitle)
         tvServerStatus = findViewById(R.id.tvServerStatus)
+
+        // Mode 1: Inicial (Não pareado)
+        panelPairingUnpaired = findViewById(R.id.panelPairingUnpaired)
         tvPairingCode = findViewById(R.id.tvPairingCode)
         tvPairingStatus = findViewById(R.id.tvPairingStatus)
         tvDeviceIdInfo = findViewById(R.id.tvDeviceIdInfo)
         containerAvailableTvs = findViewById(R.id.containerAvailableTvs)
 
+        // Mode 2: Ajustes da TV (Pareado)
+        panelPairingSettings = findViewById(R.id.panelPairingSettings)
+        tvCurrentHdmiState = findViewById(R.id.tvCurrentHdmiState)
+        btnHdmi1 = findViewById(R.id.btnHdmi1)
+        btnHdmi2 = findViewById(R.id.btnHdmi2)
+        btnHdmi3 = findViewById(R.id.btnHdmi3)
+        btnHdmiNone = findViewById(R.id.btnHdmiNone)
+        btnSettingsSwitchRoom = findViewById(R.id.btnSettingsSwitchRoom)
+        containerSettingsApps = findViewById(R.id.containerSettingsApps)
+        btnSettingsDone = findViewById(R.id.btnSettingsDone)
+
         tvDeviceIdInfo.text = "ID deste Dispositivo: ${SmartTVApp.instance.getTvDeviceId()}"
 
+        setupSettingsListeners()
         initExoPlayer()
         startClock()
 
@@ -131,7 +166,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Exibe a tela de Pareamento e Configuração (PIN + Lista de Quartos)
+     * Exibe a tela de Pareamento e Configuração (PIN ou Ajustes Locais)
      */
     private fun showPairingScreen() {
         layoutPairing.visibility = View.VISIBLE
@@ -139,8 +174,20 @@ class MainActivity : AppCompatActivity() {
         layoutHeader.visibility = View.GONE
         exoPlayer?.pause()
 
-        requestPairingCodeAndRooms()
-        startPairPolling()
+        if (!SmartTVApp.instance.isPaired()) {
+            // Modo 1: Novo pareamento
+            panelPairingUnpaired.visibility = View.VISIBLE
+            panelPairingSettings.visibility = View.GONE
+            tvOverlayTitle.text = "SMART TV MANAGER"
+            requestPairingCodeAndRooms()
+            startPairPolling()
+        } else {
+            // Modo 2: Ajustes da TV via controle remoto
+            panelPairingUnpaired.visibility = View.GONE
+            panelPairingSettings.visibility = View.VISIBLE
+            tvOverlayTitle.text = "AJUSTES — ${currentConfig?.name ?: "ESTA TV"}"
+            renderSettingsPanel()
+        }
     }
 
     /**
@@ -166,6 +213,156 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Configura ouvintes dos botões de ajustes rápidos na tela da TV
+     */
+    private fun setupSettingsListeners() {
+        btnHdmi1.setOnClickListener { selectHdmiPortOnTv("HDMI 1") }
+        btnHdmi2.setOnClickListener { selectHdmiPortOnTv("HDMI 2") }
+        btnHdmi3.setOnClickListener { selectHdmiPortOnTv("HDMI 3") }
+        btnHdmiNone.setOnClickListener { selectHdmiPortOnTv("NONE") }
+
+        btnSettingsDone.setOnClickListener {
+            showLauncherScreen()
+        }
+
+        btnSettingsSwitchRoom.setOnClickListener {
+            SmartTVApp.instance.setPaired(false)
+            currentConfig = null
+            showPairingScreen()
+        }
+    }
+
+    /**
+     * Renderiza o painel de ajustes locais (HDMI e Apps) na TV
+     */
+    private fun renderSettingsPanel() {
+        val config = currentConfig ?: return
+
+        // 1. Porta HDMI Atual
+        currentHdmiPort = if (config.hdmi.enabled) config.hdmi.inputId else "NONE"
+        updateHdmiChipsHighlight()
+
+        // 2. Apps Ativos
+        selectedAppIds.clear()
+        for (sc in config.shortcuts) {
+            if (!sc.isHdmi) {
+                selectedAppIds.add(sc.id)
+            }
+        }
+
+        populateSettingsAppsList(config.shortcuts)
+        btnSettingsDone.requestFocus()
+    }
+
+    private fun updateHdmiChipsHighlight() {
+        tvCurrentHdmiState.text = when (currentHdmiPort) {
+            "NONE" -> "Porta Atual: Desabilitada (Botão oculto)"
+            else -> "Porta Atual: $currentHdmiPort"
+        }
+
+        btnHdmi1.isSelected = (currentHdmiPort == "HDMI 1")
+        btnHdmi2.isSelected = (currentHdmiPort == "HDMI 2")
+        btnHdmi3.isSelected = (currentHdmiPort == "HDMI 3")
+        btnHdmiNone.isSelected = (currentHdmiPort == "NONE")
+    }
+
+    private fun selectHdmiPortOnTv(port: String) {
+        currentHdmiPort = port
+        updateHdmiChipsHighlight()
+
+        val deviceId = SmartTVApp.instance.getTvDeviceId()
+        val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                api.quickUpdate(
+                    QuickUpdateRequest(
+                        deviceId = deviceId,
+                        hdmiInputId = currentHdmiPort
+                    )
+                )
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Entrada alterada para $port", Toast.LENGTH_SHORT).show()
+                    loadConfigAndSetup()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao salvar porta HDMI", e)
+            }
+        }
+    }
+
+    /**
+     * Preenche a lista vertical de aplicativos para ligar/desligar com o controle remoto
+     */
+    private fun populateSettingsAppsList(shortcuts: List<ShortcutItem>) {
+        containerSettingsApps.removeAllViews()
+
+        for (sc in shortcuts) {
+            if (sc.isHdmi) continue
+
+            val row = layoutInflater.inflate(R.layout.item_tv_app_toggle, containerSettingsApps, false)
+            val iconCheck = row.findViewById<TextView>(R.id.tvAppCheckIcon)
+            val nameText = row.findViewById<TextView>(R.id.tvAppName)
+            val statusText = row.findViewById<TextView>(R.id.tvAppStatus)
+
+            nameText.text = sc.name
+            val isChecked = selectedAppIds.contains(sc.id)
+            updateAppToggleVisual(iconCheck, statusText, isChecked)
+
+            row.isFocusable = true
+            row.isClickable = true
+
+            row.setOnClickListener {
+                if (selectedAppIds.contains(sc.id)) {
+                    selectedAppIds.remove(sc.id)
+                    updateAppToggleVisual(iconCheck, statusText, false)
+                } else {
+                    selectedAppIds.add(sc.id)
+                    updateAppToggleVisual(iconCheck, statusText, true)
+                }
+                saveAppShortcutsToServer()
+            }
+
+            containerSettingsApps.addView(row)
+        }
+    }
+
+    private fun updateAppToggleVisual(iconCheck: TextView, statusText: TextView, isChecked: Boolean) {
+        if (isChecked) {
+            iconCheck.text = "✓"
+            iconCheck.setTextColor(Color.parseColor("#34D399"))
+            statusText.text = "Ativo na barra inferior (Pressione OK para desativar)"
+            statusText.setTextColor(Color.parseColor("#34D399"))
+        } else {
+            iconCheck.text = "✕"
+            iconCheck.setTextColor(Color.parseColor("#EF4444"))
+            statusText.text = "Oculto nesta TV (Pressione OK para ativar)"
+            statusText.setTextColor(Color.parseColor("#94A3B8"))
+        }
+    }
+
+    private fun saveAppShortcutsToServer() {
+        val deviceId = SmartTVApp.instance.getTvDeviceId()
+        val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                api.quickUpdate(
+                    QuickUpdateRequest(
+                        deviceId = deviceId,
+                        selectedShortcuts = selectedAppIds.toList()
+                    )
+                )
+                withContext(Dispatchers.Main) {
+                    loadConfigAndSetup()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao salvar atalhos na TV", e)
+            }
+        }
+    }
+
+    /**
      * Solicita o código PIN ao servidor e puxa a lista de TVs/Quartos cadastrados
      */
     private fun requestPairingCodeAndRooms() {
@@ -177,7 +374,6 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // 1. Gera ou recupera o código PIN no backend
                 val pairResp = api.requestPairing(
                     PairRequest(
                         deviceId = deviceId,
@@ -187,7 +383,6 @@ class MainActivity : AppCompatActivity() {
                     )
                 )
 
-                // 2. Busca lista de TVs cadastradas no servidor
                 val tvList = api.listTVs()
 
                 withContext(Dispatchers.Main) {
@@ -211,7 +406,7 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     tvServerStatus.text = "● Falha ao conectar ao servidor (192.168.168.27)"
                     tvServerStatus.setTextColor(Color.parseColor("#EF4444"))
-                    tvPairingStatus.text = "Verifique o cabo de rede/Wi-Fi. Tentando novamente..."
+                    tvPairingStatus.text = "Verifique a rede/Wi-Fi. Tentando novamente..."
                     handler.postDelayed({ requestPairingCodeAndRooms() }, 5000)
                 }
             }
@@ -263,9 +458,6 @@ class MainActivity : AppCompatActivity() {
         firstButton?.requestFocus()
     }
 
-    /**
-     * Vincula esta TV diretamente ao perfil de quarto selecionado pelo controle remoto
-     */
     private fun bindThisTvToRoom(tv: TVListItem) {
         val deviceId = SmartTVApp.instance.getTvDeviceId()
         val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
@@ -299,9 +491,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Fica ouvindo se o administrador aprovou o PIN no painel web
-     */
     private fun startPairPolling() {
         if (isPollingPairStatus) return
         isPollingPairStatus = true
@@ -365,7 +554,6 @@ class MainActivity : AppCompatActivity() {
                     }
                     return@launch
                 }
-                // Em caso de instabilidade na rede, tenta novamente em 10 segundos
                 handler.postDelayed({ loadConfigAndSetup() }, 10000)
             }
         }
@@ -384,7 +572,7 @@ class MainActivity : AppCompatActivity() {
         // Configura Playlist de Vídeos no ExoPlayer
         setupPlaylist(config)
 
-        // Renderiza Botões de Atalhos e HDMI da Sky
+        // Renderiza Botões de Atalhos e HDMI da Sky de acordo com a seleção
         setupShortcuts(config)
 
         // Agenda auto-hide da dock
@@ -410,22 +598,24 @@ class MainActivity : AppCompatActivity() {
     private fun setupShortcuts(config: TVConfigResponse) {
         containerShortcuts.removeAllViews()
 
-        // Botão HDMI SKY
-        val btnSky = layoutInflater.inflate(R.layout.item_shortcut_button, containerShortcuts, false)
-        val textSky = btnSky.findViewById<TextView>(R.id.tvShortcutName)
-        val iconSky = btnSky.findViewById<ImageView>(R.id.ivShortcutIcon)
+        // 1. Botão HDMI SKY (Apenas se estiver habilitado e com porta válida para esta TV)
+        if (config.hdmi.enabled && config.hdmi.inputId != "NONE" && config.hdmi.inputId.isNotBlank()) {
+            val btnSky = layoutInflater.inflate(R.layout.item_shortcut_button, containerShortcuts, false)
+            val textSky = btnSky.findViewById<TextView>(R.id.tvShortcutName)
+            val iconSky = btnSky.findViewById<ImageView>(R.id.ivShortcutIcon)
 
-        textSky.text = config.hdmi.label
-        iconSky.setImageResource(R.drawable.ic_hdmi_tv)
-        btnSky.setBackgroundResource(R.drawable.bg_shortcut_sky)
+            textSky.text = config.hdmi.label
+            iconSky.setImageResource(R.drawable.ic_hdmi_tv)
+            btnSky.setBackgroundResource(R.drawable.bg_shortcut_sky)
 
-        btnSky.setOnClickListener {
-            HdmiInputManager.switchToHdmiInput(this, config.hdmi.inputId)
+            btnSky.setOnClickListener {
+                HdmiInputManager.switchToHdmiInput(this, config.hdmi.inputId)
+            }
+            btnSky.isFocusable = true
+            containerShortcuts.addView(btnSky)
         }
-        btnSky.isFocusable = true
-        containerShortcuts.addView(btnSky)
 
-        // Demais aplicativos configurados para esta TV
+        // 2. Aplicativos configurados individualmente para esta TV
         for (sc in config.shortcuts) {
             if (sc.isHdmi) continue
 
@@ -457,7 +647,9 @@ class MainActivity : AppCompatActivity() {
             containerShortcuts.addView(btnApp)
         }
 
-        btnSky.requestFocus()
+        if (containerShortcuts.childCount > 0) {
+            containerShortcuts.getChildAt(0).requestFocus()
+        }
     }
 
     private fun resetAutoHideTimer() {
@@ -479,7 +671,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Pressionar MENU ou SETTINGS no controle abre/fecha a tela de pareamento e configurações
+        // Tecla MENU ou SETTINGS no controle abre/fecha o painel de ajustes
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS) {
             togglePairingOverlay()
             return true
@@ -497,6 +689,11 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    /**
+     * Heartbeat contínuo:
+     * 1. Atualiza status Online no painel
+     * 2. Se a TV for alterada no painel web (mudou HDMI, apps, vídeos), atualiza a tela na hora em tempo real!
+     */
     private fun startHeartbeatLoop() {
         handler.post(object : Runnable {
             override fun run() {
@@ -513,6 +710,8 @@ class MainActivity : AppCompatActivity() {
                             )
                         )
                         val isServerPaired = (response["is_paired"] as? Boolean) ?: false
+                        val serverUpdatedAt = response["updated_at"] as? String
+
                         if (SmartTVApp.instance.isPaired() != isServerPaired) {
                             withContext(Dispatchers.Main) {
                                 SmartTVApp.instance.setPaired(isServerPaired)
@@ -523,13 +722,20 @@ class MainActivity : AppCompatActivity() {
                                     showPairingScreen()
                                 }
                             }
+                        } else if (isServerPaired && serverUpdatedAt != null && serverUpdatedAt != lastConfigUpdatedAt) {
+                            // Nova configuração aplicada no painel web!
+                            Log.d(TAG, "Configuração atualizada no servidor ($serverUpdatedAt). Recarregando TV...")
+                            lastConfigUpdatedAt = serverUpdatedAt
+                            withContext(Dispatchers.Main) {
+                                loadConfigAndSetup()
+                            }
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "Heartbeat ping falhou: ${e.message}")
                     }
                 }
 
-                handler.postDelayed(this, 30000)
+                handler.postDelayed(this, 15000) // Verifica a cada 15 segundos
             }
         })
     }

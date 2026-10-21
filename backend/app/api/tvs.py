@@ -12,7 +12,7 @@ from app.services.audit import record_audit_log
 from app.models.dto import (
     SmartTVOut, SmartTVCreate, SmartTVUpdate,
     SmartTVPairRequest, SmartTVClaimRequest, SmartTVPingRequest,
-    SmartTVBindRequest, TVClientConfig
+    SmartTVBindRequest, SmartTVQuickUpdateRequest, TVClientConfig
 )
 
 router = APIRouter(prefix="/tvs", tags=["Smart TVs"])
@@ -358,7 +358,7 @@ async def bind_device(payload: SmartTVBindRequest, request: Request, db: AsyncSe
     await db.refresh(tv)
     return {"status": "ok", "message": f"TV vinculada a {tv.name}", "device_id": tv.device_id, "tv_id": tv.id}
 
-# Heartbeat Ping from APK
+# Heartbeat Ping from APK (returns updated_at so TV reloads in real-time if changed in dashboard)
 @router.post("/ping")
 async def tv_ping(payload: SmartTVPingRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(SmartTV).where(SmartTV.device_id == payload.device_id))
@@ -374,7 +374,32 @@ async def tv_ping(payload: SmartTVPingRequest, db: AsyncSession = Depends(get_db
         tv.app_version = payload.app_version
 
     await db.commit()
-    return {"status": "ok", "is_paired": tv.is_paired, "server_time": datetime.utcnow()}
+    return {
+        "status": "ok",
+        "is_paired": tv.is_paired,
+        "updated_at": tv.updated_at.isoformat() if tv.updated_at else None,
+        "server_time": datetime.utcnow()
+    }
+
+# Quick Update from TV remote control (HDMI port, label, or shortcuts toggled on screen)
+@router.post("/quick-update")
+async def quick_update(payload: SmartTVQuickUpdateRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(SmartTV).where(SmartTV.device_id == payload.device_id))
+    tv = result.scalar_one_or_none()
+    if not tv:
+        raise HTTPException(status_code=404, detail="TV não encontrada")
+
+    if payload.hdmi_input_id is not None:
+        tv.hdmi_input_id = payload.hdmi_input_id
+    if payload.hdmi_label is not None:
+        tv.hdmi_label = payload.hdmi_label
+    if payload.selected_shortcuts is not None:
+        tv.selected_shortcuts = payload.selected_shortcuts
+
+    tv.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(tv)
+    return {"status": "ok", "message": "TV atualizada com sucesso", "tv_id": tv.id}
 
 # Full Config Endpoint consumed by Android APK
 @router.get("/config/{device_id}", response_model=TVClientConfig)
@@ -393,24 +418,26 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
 
     # Load shortcuts
     shortcuts_data = []
-    if tv.selected_shortcuts:
-        sc_res = await db.execute(select(AppShortcut).where(AppShortcut.id.in_(tv.selected_shortcuts)))
-        shortcuts = sc_res.scalars().all()
-        # Sort according to selected_shortcuts order
-        sc_dict = {s.id: s for s in shortcuts}
-        for sid in tv.selected_shortcuts:
-            if sid in sc_dict:
-                s = sc_dict[sid]
-                shortcuts_data.append({
-                    "id": s.id,
-                    "name": s.name,
-                    "package_name": s.package_name,
-                    "icon_name": s.icon_name,
-                    "is_hdmi": s.is_hdmi,
-                    "is_system_app": s.is_system_app
-                })
+    if tv.selected_shortcuts is not None:
+        if len(tv.selected_shortcuts) > 0:
+            sc_res = await db.execute(select(AppShortcut).where(AppShortcut.id.in_(tv.selected_shortcuts)))
+            shortcuts = sc_res.scalars().all()
+            sc_dict = {s.id: s for s in shortcuts}
+            for sid in tv.selected_shortcuts:
+                if sid in sc_dict:
+                    s = sc_dict[sid]
+                    shortcuts_data.append({
+                        "id": s.id,
+                        "name": s.name,
+                        "package_name": s.package_name,
+                        "icon_name": s.icon_name,
+                        "is_hdmi": s.is_hdmi,
+                        "is_system_app": s.is_system_app
+                    })
+        else:
+            shortcuts_data = []
     else:
-        # Fallback to default shortcuts
+        # Fallback to default apps (non-HDMI)
         sc_res = await db.execute(select(AppShortcut).order_by(AppShortcut.default_order.asc()))
         shortcuts = sc_res.scalars().all()
         for s in shortcuts:
@@ -454,6 +481,8 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
             "config": tv.layout.config
         }
 
+    is_hdmi_enabled = tv.hdmi_input_id not in ("NONE", "DISABLED", None, "") and not (tv.custom_settings or {}).get("hide_hdmi", False)
+
     return TVClientConfig(
         device_id=tv.device_id,
         name=tv.name,
@@ -461,7 +490,8 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
         is_paired=tv.is_paired,
         layout=layout_data,
         hdmi={
-            "input_id": tv.hdmi_input_id or "HDMI 1",
+            "enabled": is_hdmi_enabled,
+            "input_id": tv.hdmi_input_id if is_hdmi_enabled else "NONE",
             "label": tv.hdmi_label or "TV SKY",
             "action": "action.switch_hdmi"
         },

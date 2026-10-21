@@ -138,7 +138,7 @@
         </HorizontalScrollView>
     </LinearLayout>
 
-    <!-- OVERLAY DE PAREAMENTO E CONFIGURAÇÃO (Exibido se a TV ainda não foi vinculada ou via tecla MENU) -->
+    <!-- OVERLAY DE PAREAMENTO E AJUSTES DA TV (Acionado se não pareado ou via tecla MENU) -->
     <LinearLayout
         android:id="@+id/layoutPairing"
         android:layout_width="match_parent"
@@ -148,7 +148,7 @@
         android:padding="28dp"
         android:visibility="gone">
 
-        <!-- Barra Superior do Pareamento -->
+        <!-- Barra Superior do Menu -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -157,6 +157,7 @@
             android:layout_marginBottom="16dp">
 
             <TextView
+                android:id="@+id/tvOverlayTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="SMART TV MANAGER"
@@ -166,6 +167,7 @@
                 android:letterSpacing="0.1" />
 
             <TextView
+                android:id="@+id/tvOverlaySubtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="10dp"
@@ -189,18 +191,20 @@
                 android:background="@drawable/bg_wifi_pill"
                 android:paddingHorizontal="16dp"
                 android:paddingVertical="8dp"
-                android:text="● Conectando ao Servidor..."
-                android:textColor="#60A5FA"
+                android:text="● Conectado ao Servidor (192.168.168.27)"
+                android:textColor="#34D399"
                 android:textSize="13sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Conteúdo Principal em 2 Colunas -->
+        <!-- MODO 1: TELA DE PAREAMENTO INICIAL (Exibido se a TV NÃO estiver pareada) -->
         <LinearLayout
+            android:id="@+id/panelPairingUnpaired"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:visibility="visible">
 
             <!-- Coluna 1: Pareamento via Painel Web com PIN -->
             <LinearLayout
@@ -229,7 +233,6 @@
                     android:textColor="#CBD5E1"
                     android:textSize="14sp" />
 
-                <!-- Caixa com o Código PIN em Grande Destaque -->
                 <TextView
                     android:id="@+id/tvPairingCode"
                     android:layout_width="match_parent"
@@ -291,7 +294,6 @@
                     android:textColor="#CBD5E1"
                     android:textSize="14sp" />
 
-                <!-- Lista de Quartos Cadastrados no Servidor -->
                 <ScrollView
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
@@ -309,13 +311,181 @@
 
         </LinearLayout>
 
+        <!-- MODO 2: AJUSTES DA TV VIA CONTROLE REMOTO (Exibido ao pressionar MENU se a TV já estiver pareada) -->
+        <LinearLayout
+            android:id="@+id/panelPairingSettings"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <!-- Coluna Esquerda: Ajuste da Entrada HDMI -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_card_dark"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SAÍDA / ENTRADA HDMI (SKY TV)"
+                    android:textColor="#EF4444"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.05" />
+
+                <TextView
+                    android:id="@+id/tvCurrentHdmiState"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Porta Selecionada: HDMI 1"
+                    android:textColor="#E2E8F0"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Selecione onde o decodificador está conectado nesta TV:"
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp" />
+
+                <!-- Grid de Chips HDMI Selecionáveis via Controle Remoto -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="16dp">
+
+                    <Button
+                        android:id="@+id/btnHdmi1"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:background="@drawable/bg_chip_button"
+                        android:text="Porta HDMI 1"
+                        android:textColor="#FFFFFF"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnHdmi2"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:background="@drawable/bg_chip_button"
+                        android:text="Porta HDMI 2"
+                        android:textColor="#FFFFFF"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnHdmi3"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:background="@drawable/bg_chip_button"
+                        android:text="Porta HDMI 3"
+                        android:textColor="#FFFFFF"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnHdmiNone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_chip_button"
+                        android:text="Sem HDMI (Ocultar botão Sky nesta TV)"
+                        android:textColor="#94A3B8"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <!-- Botão para Desvincular / Trocar de Quarto -->
+                <Button
+                    android:id="@+id/btnSettingsSwitchRoom"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_chip_button"
+                    android:text="🔄 Trocar Quarto desta TV"
+                    android:textColor="#F59E0B"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- Coluna Direita: Aplicativos Visíveis na Barra -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_card_dark"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="APLICATIVOS ATIVOS NA BARRA"
+                    android:textColor="#60A5FA"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.05" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Pressione OK em um app para ligar ou desligar da barra:"
+                    android:textColor="#E2E8F0"
+                    android:textSize="14sp" />
+
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginTop="14dp"
+                    android:scrollbars="vertical">
+
+                    <LinearLayout
+                        android:id="@+id/containerSettingsApps"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </ScrollView>
+
+                <!-- Botão de Concluir e Voltar -->
+                <Button
+                    android:id="@+id/btnSettingsDone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_shortcut_sky"
+                    android:paddingVertical="14dp"
+                    android:text="✔️ Concluir e Voltar ao Vídeo"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+        </LinearLayout>
+
         <!-- Rodapé com Dica de Uso -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="14dp"
-            android:text="Dica: Durante a reprodução dos vídeos, pressione a tecla MENU do controle a qualquer momento para abrir esta tela."
+            android:text="Dica: Durante a reprodução, pressione a tecla MENU do controle para abrir este painel a qualquer momento."
             android:textColor="#64748B"
             android:textSize="13sp" />
 

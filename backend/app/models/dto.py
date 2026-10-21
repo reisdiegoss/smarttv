@@ -150,6 +150,12 @@ class SmartTVBindRequest(BaseModel):
     ip_address: Optional[str] = None
     app_version: Optional[str] = "1.0.1"
 
+class SmartTVQuickUpdateRequest(BaseModel):
+    device_id: str
+    hdmi_input_id: Optional[str] = None
+    hdmi_label: Optional[str] = None
+    selected_shortcuts: Optional[List[int]] = None
+
 class SmartTVOut(BaseModel):
     id: int
     device_id: str
