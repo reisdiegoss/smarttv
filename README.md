@@ -4,19 +4,76 @@ Sistema completo e centralizado para gerenciamento de Smart TVs (Android TV / Go
 
 ---
 
+## 🌐 URLs de Produção no Servidor (Sem Portas Expostas)
+
+O sistema está implantado no servidor corporativo e opera através de **Proxy Reverso Nginx** na porta 80 padrão:
+
+* **Painel Web Administrativo:** [http://fassa27.fasanobr.local/](http://fassa27.fasanobr.local/) (ou [http://192.168.168.27/](http://192.168.168.27/))
+* **Swagger / Documentação da API:** [http://fassa27.fasanobr.local/docs](http://fassa27.fasanobr.local/docs)
+* **Banco de Dados (PostgreSQL 16):** `192.168.168.26:5432` (banco `smarttv`)
+
+---
+
+## 🔄 Fluxo de Atualização Automática (Git Diff & Update)
+
+Implementamos o fluxo completo de sincronização entre o seu computador de desenvolvimento e o servidor:
+
+### 1. No seu Computador (Windows):
+Sempre que fizer alterações no código, basta executar:
+```bash
+.\git_push_update.bat
+```
+*(ou manualmente: `git add -A && git commit -m "mensagem" && git push origin main`)*
+
+### 2. No Servidor (`fassa27.fasanobr.local`):
+Conecte-se via SSH (`ssh root@fassa27.fasanobr.local`) e execute o comando:
+```bash
+smarttv-update
+```
+O script inteligente realiza automaticamente:
+1. `git fetch origin main`
+2. Analisa o `git diff` e mostra na tela exatamente o que mudou.
+3. Se o frontend tiver mudanças, roda o `npm run build` automaticamente com Node 22 LTS.
+4. Se o backend tiver novos pacotes em `requirements.txt`, atualiza o virtualenv.
+5. Reinicia os serviços `smarttv-backend` e recarrega o Nginx sem derrubar conexões ativas.
+
+---
+
+## 🎨 Correção dos Ícones e Animação Selecionada
+
+### 1. Na TV (APK Android TV / Google TV):
+* O APK **não cria ícones genéricos**.
+* Através do `PackageManager`, o app consulta diretamente o sistema operacional da TV:
+  ```kotlin
+  val banner = packageManager.getApplicationBanner(sc.packageName)
+  val icon = packageManager.getApplicationIcon(sc.packageName)
+  ```
+* Se o aplicativo já estiver instalado fisicamente na TV (como Netflix, YouTube, Prime Video, Globoplay, Disney+), o Launcher puxa e exibe o **banner oficial em alta resolução** registrado pelo próprio fabricante do app.
+
+### 2. No Painel Web & Simulador:
+* Logotipos oficiais vetorizados em SVG (Netflix, Disney+, YouTube, Prime Video, Globoplay, Max, Spotify e SKY HD).
+* Animação do card focado corrigida: elevação sutil `scale(1.10)` com easing suave (`cubic-bezier`), iluminação halo (`box-shadow`), z-index elevado e espaçamento interno que impede o corte/cegamento nas bordas do container.
+
+---
+
 ## 🏛️ Arquitetura do Sistema
 
 ```mermaid
 graph TD
-    subgraph "Servidor Central (192.168.168.26)"
-        WP[Painel Web Admin - React / Vite :3000]
-        API[Backend FastAPI :8000]
-        DB[(PostgreSQL 16 - smarttv)]
-        STORAGE[Uploads de Vídeo MP4]
+    subgraph "Servidor Central (fassa27.fasanobr.local - 192.168.168.27)"
+        PROXY[Proxy Reverso Nginx :80]
+        WP[Frontend React / Vite Compilado]
+        API[Backend FastAPI :8000 Localhost]
+        STORAGE[/opt/smarttv/uploads/]
 
-        WP <-->|REST API + WebSocket| API
+        PROXY -->|URL /| WP
+        PROXY -->|URL /api/ & /ws/| API
+        API --> STORAGE
+    end
+
+    subgraph "Banco de Dados (192.168.168.26)"
+        DB[(PostgreSQL 16 - smarttv)]
         API <--> DB
-        API <--> STORAGE
     end
 
     subgraph "Smart TVs (Android 9+ / Google TV)"
@@ -25,77 +82,16 @@ graph TD
         TV3[TV Recepção / Lobby]
     end
 
-    TV1 <-->|Sync Config / Heartbeat| API
-    TV2 <-->|Sync Config / Heartbeat| API
-    TV3 <-->|Sync Config / Heartbeat| API
+    TV1 <-->|Sync Config / Heartbeat| PROXY
+    TV2 <-->|Sync Config / Heartbeat| PROXY
+    TV3 <-->|Sync Config / Heartbeat| PROXY
 ```
 
 ---
 
-## 🚀 Como Iniciar o Sistema
-
-### 1. Iniciar o Backend (FastAPI + PostgreSQL):
-Basta executar o script:
-```bash
-.\start_backend.bat
-```
-Ou manualmente pelo terminal:
-```bash
-cd backend
-.\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-* **URL da API:** `http://localhost:8000`
-* **Swagger / Documentação Interativa:** `http://localhost:8000/docs`
-
-### 2. Iniciar o Painel Web (Frontend):
-Basta executar o script:
-```bash
-.\start_frontend.bat
-```
-Ou manualmente pelo terminal:
-```bash
-cd frontend
-npm run dev
-```
-* **URL do Painel:** `http://localhost:3000` (disponível na rede local para qualquer computador ou tablet).
-
----
-
-## 📺 Principais Módulos
-
-### 1. Gestão Individualizada de Cada TV
-* **Nome e Localização:** Ex: *"Suíte Master 101"*, *"Lobby Principal"*.
-* **Layout da Tela:** Escolha entre 4 modelos visuais:
-  1. *Hotel Luxo:* Vídeo em tela cheia com barra inferior (dock translúcido com glassmorphism).
-  2. *Split Screen Corporativo:* Vídeo 70% + Painel lateral 30% com relógio, clima, QR Code de Wi-Fi e lista de apps.
-  3. *Vitrine Minimalista:* Vídeo 100% contínuo, menu oculto que surge ao toque de qualquer tecla.
-  4. *Mural Informativo:* Vídeo de fundo com letreiro de notícias/avisos correndo na parte inferior (ticker).
-* **Entrada HDMI Sky Customizada:** Defina qual porta física (`HDMI 1`, `HDMI 2`, `HW1`) está conectada ao decodificador Sky e personalize o nome exibido (ex: *"TV SKY HD"*).
-* **Atalhos Selecionados:** Escolha individualmente quais apps cada TV pode acessar (Netflix, YouTube, Globoplay, Prime Video, Disney+, Max, etc.).
-* **Mensagens e Wi-Fi:** Personalize o título de boas-vindas e a senha de Wi-Fi exibida na tela.
-
-### 2. Módulo de Vídeos e Playlists Contínuas
-* Upload de vídeos em MP4/WebM diretamente pelo painel.
-* Streaming com suporte a **HTTP Range Requests (206)** para reprodução imediata sem travamentos.
-* Criação de playlists com ordenação sequencial e repetição contínua (loop).
-
-### 3. Simulador Interativo de TV (No Navegador)
-* Permite que o administrador teste a interface da TV diretamente pelo painel.
-* Simula a navegação pelo controle remoto (setas ◀ ▶ do teclado físico e botão Enter).
-* Testa a alternância para a SKY HDMI e a abertura simulada de apps.
-
-### 4. APK Android TV (Android 9.0+)
-* Localizado na pasta `android-tv-app/`.
-* Utiliza **Media3 ExoPlayer** com cache em disco (`SimpleCache` de 2GB): se a internet da TV cair, os vídeos continuam passando normalmente direto do armazenamento interno.
-* Registrado como **Home Launcher** e auto-inicia com a TV (`BOOT_COMPLETED`).
-* Pareamento por código PIN: a TV exibe um código de 6 dígitos ao ligar para ser ativada com 1 clique no painel web.
-
----
-
-## 🗄️ Dados de Conexão com o Banco de Dados
-
-* **Host:** `192.168.168.26`
-* **Porta:** `5432`
-* **Usuário:** `postgres`
-* **Senha:** `6ffdd4a3d0e99d78b1e15f411b04e323`
-* **Banco de Dados:** `smarttv`
+## 📺 Aplicativo Android TV (APK)
+Localizado na pasta [android-tv-app/](file:///c:/Users/diego.reis/Documents/DEV/SMARTTV/android-tv-app):
+* Suporte a Android 9.0+ (API 28+).
+* Player com **Media3 ExoPlayer** e **Cache Local de 2GB** para reprodução contínua mesmo se a rede oscilar.
+* Troca direta para entrada HDMI da Sky via `TvInputManager` (TIF).
+* Inicialização automática ao ligar a TV (`BOOT_COMPLETED`) e botão Home atribuído.
