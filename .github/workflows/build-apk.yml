@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build & Release SmartTV Launcher APK
+    name: Build SmartTV Launcher APK
     runs-on: ubuntu-latest
 
     steps:
@@ -28,20 +28,22 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Accept Android SDK Licenses & Verify SDK
+      - name: Configure Android SDK & local.properties
         run: |
-          echo "ANDROID_HOME: $ANDROID_HOME"
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          echo "sdk.dir=$ANDROID_HOME" > android-tv-app/local.properties
+          cat android-tv-app/local.properties
 
       - name: Build Debug APK
         working-directory: ./android-tv-app
         run: |
-          gradle assembleDebug --stacktrace
+          gradle assembleDebug --no-daemon --stacktrace
 
-      - name: Prepare APK Artifact
+      - name: Verify and Prepare APK
         run: |
           mkdir -p build-output
+          find android-tv-app -name "*.apk"
           cp android-tv-app/app/build/outputs/apk/debug/app-debug.apk build-output/smarttv-launcher.apk
+          ls -lh build-output/smarttv-launcher.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -50,12 +52,13 @@ jobs:
           path: build-output/smarttv-launcher.apk
           retention-days: 30
 
-      - name: Release Latest APK
+      - name: Publish GitHub Release
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: latest
-          name: "SmartTV Launcher APK (Build Automático)"
+          tag_name: v1.0.0
+          name: "SmartTV Launcher APK (Mais Recente)"
           body: |
             ### SmartTV Manager Launcher (Android TV / Google TV)
             - **Compatibilidade:** Android 5.0 (API 21) até Android 14+ (API 34)
