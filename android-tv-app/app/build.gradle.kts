@@ -48,6 +48,8 @@ dependencies {
     // Media3 ExoPlayer (Player de Vídeo com Cache Local)
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
+    implementation("androidx.media3:media3-datasource:1.2.1")
+    implementation("androidx.media3:media3-database:1.2.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.2.1")
 
     // Retrofit & OkHttp (Comunicação com API do Servidor)
