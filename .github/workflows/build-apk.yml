@@ -1,0 +1,72 @@
+name: Build Android TV Launcher APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release SmartTV Launcher APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Generate Gradle Wrapper
+        working-directory: ./android-tv-app
+        run: gradle wrapper --gradle-version 8.7
+
+      - name: Grant execute permission for gradlew
+        working-directory: ./android-tv-app
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        working-directory: ./android-tv-app
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Prepare APK Artifact
+        run: |
+          mkdir -p build-output
+          cp android-tv-app/app/build/outputs/apk/debug/app-debug.apk build-output/smarttv-launcher.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smarttv-launcher-apk
+          path: build-output/smarttv-launcher.apk
+          retention-days: 30
+
+      - name: Release Latest APK
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: latest
+          name: "SmartTV Launcher APK (Build Automático)"
+          body: |
+            ### SmartTV Manager Launcher (Android TV / Google TV)
+            - **Compatibilidade:** Android 5.0 (API 21) até Android 14+ (API 34)
+            - **ExoPlayer:** Reprodução contínua de playlist de vídeos com cache local em disco
+            - **Atalhos:** Leitura de ícones e banners oficiais via PackageManager
+            - **HDMI SKY:** Troca automática para a entrada HDMI configurada
+          draft: false
+          prerelease: false
+          files: build-output/smarttv-launcher.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

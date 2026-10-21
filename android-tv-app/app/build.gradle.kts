@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.smarttv.launcher"
-        minSdk = 28 // Android 9.0 (Pie)
+        minSdk = 21 // Suporta desde Android 5.0 até Android 14+ (evita erro de análise de pacote)
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"

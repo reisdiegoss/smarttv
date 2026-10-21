@@ -50,6 +50,11 @@ if git diff --name-only "$LOCAL" HEAD | grep -q "^backend/requirements.txt"; the
     "$REPO_DIR/backend/venv/bin/pip" install -r "$REPO_DIR/backend/requirements.txt"
 fi
 
+# Garante a presenca do APK compilado no diretorio publico de download
+echo "Sincronizando APK da Launcher para a TV..."
+APK_URL="https://github.com/reisdiegoss/smarttv/releases/download/latest/smarttv-launcher.apk"
+curl -fsSL "$APK_URL" -o "$REPO_DIR/frontend/dist/smarttv-launcher.apk" 2>/dev/null || echo "Aviso: APK no GitHub ainda não gerado ou em compilação."
+
 echo "[4/4] Reiniciando serviços..."
 systemctl restart smarttv-backend
 systemctl reload nginx
