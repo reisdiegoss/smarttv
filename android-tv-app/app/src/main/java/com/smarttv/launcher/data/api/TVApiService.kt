@@ -24,7 +24,7 @@ interface TVApiService {
 
     companion object {
         // IP padrão do servidor na rede local (configurável pelo app)
-        private const val DEFAULT_BASE_URL = "http://192.168.168.26:8000/"
+        private const val DEFAULT_BASE_URL = "http://192.168.168.27/"
 
         fun create(baseUrl: String = DEFAULT_BASE_URL): TVApiService {
             val logging = HttpLoggingInterceptor().apply {

@@ -3,6 +3,7 @@ package com.smarttv.launcher
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import java.util.UUID
 
 class SmartTVApp : Application() {
@@ -10,6 +11,7 @@ class SmartTVApp : Application() {
     companion object {
         lateinit var instance: SmartTVApp
             private set
+        private const val TAG = "SmartTVApp"
     }
 
     private lateinit var prefs: SharedPreferences
@@ -17,6 +19,11 @@ class SmartTVApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.e(TAG, "FATAL CRASH on thread ${thread.name}: ${throwable.message}", throwable)
+        }
+
         prefs = getSharedPreferences("smarttv_prefs", Context.MODE_PRIVATE)
 
         // Gera ou recupera um Device ID único persistente para esta TV
@@ -31,7 +38,7 @@ class SmartTVApp : Application() {
     }
 
     fun getServerUrl(): String {
-        return prefs.getString("server_url", "http://192.168.168.26:8000/") ?: "http://192.168.168.26:8000/"
+        return prefs.getString("server_url", "http://192.168.168.27/") ?: "http://192.168.168.27/"
     }
 
     fun setServerUrl(url: String) {

@@ -70,16 +70,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initExoPlayer() {
-        val cacheDataSourceFactory = VideoCacheManager.buildCacheDataSourceFactory(this)
-        val mediaSourceFactory = DefaultMediaSourceFactory(cacheDataSourceFactory)
+        try {
+            val cacheDataSourceFactory = VideoCacheManager.buildCacheDataSourceFactory(this)
+            val mediaSourceFactory = DefaultMediaSourceFactory(cacheDataSourceFactory)
 
-        exoPlayer = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .build()
-            .apply {
-                repeatMode = Player.REPEAT_MODE_ALL
-                playWhenReady = true
-            }
+            exoPlayer = ExoPlayer.Builder(this)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .build()
+                .apply {
+                    repeatMode = Player.REPEAT_MODE_ALL
+                    playWhenReady = true
+                }
+        } catch (e: Exception) {
+            exoPlayer = ExoPlayer.Builder(this)
+                .build()
+                .apply {
+                    repeatMode = Player.REPEAT_MODE_ALL
+                    playWhenReady = true
+                }
+        }
 
         playerView.player = exoPlayer
         playerView.useController = false

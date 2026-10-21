@@ -58,7 +58,7 @@ class PairingActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    tvStatus.text = "Buscando conexão com o servidor 192.168.168.26..."
+                    tvStatus.text = "Buscando conexão com o servidor 192.168.168.27..."
                     handler.postDelayed({ requestPairingCode() }, 5000)
                 }
             }
