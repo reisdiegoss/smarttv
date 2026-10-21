@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Estado Focado no botão da Sky -->
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:startColor="#EF4444"
+                android:endColor="#B91C1C" />
+            <stroke android:width="3dp" android:color="#FFFFFF" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
+    <!-- Estado Normal -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#450A0A" />
+            <stroke android:width="1dp" android:color="#DC2626" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
+</selector>
