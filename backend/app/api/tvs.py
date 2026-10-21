@@ -12,7 +12,7 @@ from app.services.audit import record_audit_log
 from app.models.dto import (
     SmartTVOut, SmartTVCreate, SmartTVUpdate,
     SmartTVPairRequest, SmartTVClaimRequest, SmartTVPingRequest,
-    TVClientConfig
+    SmartTVBindRequest, TVClientConfig
 )
 
 router = APIRouter(prefix="/tvs", tags=["Smart TVs"])
@@ -317,6 +317,46 @@ async def claim_tv(payload: SmartTVClaimRequest, request: Request, db: AsyncSess
     await db.commit()
     await db.refresh(tv)
     return {"message": "TV pareada com sucesso!", "tv_id": tv.id, "name": tv.name}
+
+# Direct Bind Endpoint (Called by Android TV APK when user selects room from list on TV)
+@router.post("/bind-device")
+async def bind_device(payload: SmartTVBindRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(SmartTV).where(SmartTV.id == payload.tv_id))
+    tv = result.scalar_one_or_none()
+    if not tv:
+        raise HTTPException(status_code=404, detail="TV não encontrada")
+
+    # Se já existir alguma TV órfã/temporária com o mesmo device_id (diferente desta), deleta
+    existing = await db.execute(select(SmartTV).where(SmartTV.device_id == payload.device_id, SmartTV.id != payload.tv_id))
+    for old_tv in existing.scalars().all():
+        await db.delete(old_tv)
+
+    tv.device_id = payload.device_id
+    tv.is_paired = True
+    tv.is_online = True
+    tv.last_ping = datetime.utcnow()
+    if payload.ip_address:
+        tv.ip_address = payload.ip_address
+    if payload.app_version:
+        tv.app_version = payload.app_version
+
+    # Log device pair
+    log = DeviceLog(tv_id=tv.id, event_type="BIND", message=f"TV vinculada diretamente pelo controle ao perfil '{tv.name}'")
+    db.add(log)
+
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="TV_BIND",
+        entity="SmartTV",
+        entity_id=str(tv.id),
+        entity_name=tv.name,
+        description=f"TV vinculada diretamente pelo controle remoto ao perfil '{tv.name}' (DeviceID: {payload.device_id})"
+    )
+
+    await db.commit()
+    await db.refresh(tv)
+    return {"status": "ok", "message": f"TV vinculada a {tv.name}", "device_id": tv.device_id, "tv_id": tv.id}
 
 # Heartbeat Ping from APK
 @router.post("/ping")

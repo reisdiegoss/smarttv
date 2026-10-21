@@ -22,6 +22,12 @@ interface TVApiService {
     @GET("/api/tvs/config/{device_id}")
     suspend fun getTVConfig(@Path("device_id") deviceId: String): TVConfigResponse
 
+    @GET("/api/tvs")
+    suspend fun listTVs(): List<TVListItem>
+
+    @POST("/api/tvs/bind-device")
+    suspend fun bindDevice(@Body body: BindDeviceRequest): BindDeviceResponse
+
     companion object {
         // IP padrão do servidor na rede local (configurável pelo app)
         private const val DEFAULT_BASE_URL = "http://192.168.168.27/"

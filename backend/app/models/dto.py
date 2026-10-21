@@ -144,6 +144,12 @@ class SmartTVPingRequest(BaseModel):
     free_storage_mb: Optional[int] = None
     current_playing_media_id: Optional[int] = None
 
+class SmartTVBindRequest(BaseModel):
+    tv_id: int
+    device_id: str
+    ip_address: Optional[str] = None
+    app_version: Optional[str] = "1.0.1"
+
 class SmartTVOut(BaseModel):
     id: int
     device_id: str

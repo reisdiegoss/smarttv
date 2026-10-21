@@ -52,14 +52,21 @@ if os.path.exists(apk_src):
     size_mb = os.path.getsize(apk_src) / (1024 * 1024)
     print(f"APK Gerado: {apk_src} ({size_mb:.2f} MB)")
 
-    # 1. Copia para o frontend público para download direto no sistema
+    # 1. Copia para o frontend público para ser incluído no build do Vite
+    public_dir = os.path.join(BASE_DIR, "frontend", "public")
+    os.makedirs(public_dir, exist_ok=True)
+    dest_pub = os.path.join(public_dir, "smarttv-launcher.apk")
+    shutil.copy2(apk_src, dest_pub)
+    print(f"Copiado para public (fonte Vite): {dest_pub}")
+
+    # 2. Copia para dist direto caso o Nginx já esteja servindo
     dist_dir = os.path.join(BASE_DIR, "frontend", "dist")
     os.makedirs(dist_dir, exist_ok=True)
     dest_dist = os.path.join(dist_dir, "smarttv-launcher.apk")
     shutil.copy2(apk_src, dest_dist)
-    print(f"Copiado para o sistema web: {dest_dist}")
+    print(f"Copiado para dist: {dest_dist}")
 
-    # 2. Copia para a raiz como atalho
+    # 3. Copia para a raiz como atalho
     root_apk = os.path.join(BASE_DIR, "smarttv-launcher.apk")
     shutil.copy2(apk_src, root_apk)
     print(f"Copiado para a raiz: {root_apk}")

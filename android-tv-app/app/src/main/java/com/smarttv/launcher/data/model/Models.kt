@@ -71,3 +71,25 @@ data class PingRequest(
     @SerializedName("ip_address") val ipAddress: String?,
     @SerializedName("app_version") val appVersion: String = "1.0.0"
 )
+
+data class TVListItem(
+    @SerializedName("id") val id: Int,
+    @SerializedName("device_id") val deviceId: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("room_group") val roomGroup: String? = null,
+    @SerializedName("is_paired") val isPaired: Boolean? = true
+)
+
+data class BindDeviceRequest(
+    @SerializedName("tv_id") val tvId: Int,
+    @SerializedName("device_id") val deviceId: String,
+    @SerializedName("ip_address") val ipAddress: String?,
+    @SerializedName("app_version") val appVersion: String = "1.0.1"
+)
+
+data class BindDeviceResponse(
+    @SerializedName("status") val status: String,
+    @SerializedName("message") val message: String,
+    @SerializedName("device_id") val deviceId: String,
+    @SerializedName("tv_id") val tvId: Int
+)

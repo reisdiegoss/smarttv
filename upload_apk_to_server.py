@@ -18,21 +18,26 @@ try:
     ssh.connect("192.168.168.27", username="root", password="@FasanoS#srv", timeout=10)
     sftp = ssh.open_sftp()
     
-    # Garante que a pasta dist existe no servidor
-    stdin, stdout, stderr = ssh.exec_command("mkdir -p /opt/smarttv/frontend/dist")
+    # Garante que as pastas existem no servidor
+    stdin, stdout, stderr = ssh.exec_command("mkdir -p /opt/smarttv/frontend/dist /opt/smarttv/frontend/public")
     stdout.channel.recv_exit_status()
 
-    remote_path = "/opt/smarttv/frontend/dist/smarttv-launcher.apk"
-    print(f"Copiando via SFTP para {remote_path}...")
-    sftp.put(APK_PATH, remote_path)
+    remote_paths = [
+        "/opt/smarttv/frontend/dist/smarttv-launcher.apk",
+        "/opt/smarttv/frontend/public/smarttv-launcher.apk",
+        "/opt/smarttv/smarttv-launcher.apk"
+    ]
+    for rpath in remote_paths:
+        print(f"Copiando via SFTP para {rpath}...")
+        sftp.put(APK_PATH, rpath)
     sftp.close()
 
-    # Confirma tamanho e permissões no servidor
-    stdin, stdout, stderr = ssh.exec_command(f"ls -lh {remote_path}")
+    # Confirma tamanho e MD5 no servidor
+    stdin, stdout, stderr = ssh.exec_command("ls -lh /opt/smarttv/frontend/dist/smarttv-launcher.apk && md5sum /opt/smarttv/frontend/dist/smarttv-launcher.apk")
     output = stdout.read().decode("utf-8").strip()
     print("Confirmação no servidor:\n", output)
 
-    print("\n[OK] APK enviado e disponível para download no painel web!")
+    print("\n[OK] APK enviado e verificado no servidor!")
 
 except Exception as e:
     print(f"Erro ao enviar via SFTP: {e}")

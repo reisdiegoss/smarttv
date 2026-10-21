@@ -51,10 +51,15 @@ if git diff --name-only "$LOCAL" HEAD | grep -q "^backend/requirements.txt"; the
 fi
 
 echo "Sincronizando APK da Launcher para a TV..."
-APK_URL="https://github.com/reisdiegoss/smarttv/releases/latest/download/smarttv-launcher.apk"
-curl -fsSL "$APK_URL" -o "$REPO_DIR/frontend/dist/smarttv-launcher.apk" 2>/dev/null || \
-curl -fsSL "https://github.com/reisdiegoss/smarttv/releases/download/latest/smarttv-launcher.apk" -o "$REPO_DIR/frontend/dist/smarttv-launcher.apk" 2>/dev/null || \
-echo "Aviso: APK no GitHub ainda não gerado ou em compilação."
+if [ -f "$REPO_DIR/frontend/public/smarttv-launcher.apk" ]; then
+    cp -f "$REPO_DIR/frontend/public/smarttv-launcher.apk" "$REPO_DIR/frontend/dist/smarttv-launcher.apk"
+    echo "APK sincronizado a partir de frontend/public/."
+elif [ -f "$REPO_DIR/smarttv-launcher.apk" ]; then
+    cp -f "$REPO_DIR/smarttv-launcher.apk" "$REPO_DIR/frontend/dist/smarttv-launcher.apk"
+    echo "APK sincronizado a partir da raiz do repositório."
+else
+    echo "Aviso: Nenhum APK encontrado localmente no repositório."
+fi
 
 echo "[4/4] Reiniciando serviços..."
 systemctl restart smarttv-backend

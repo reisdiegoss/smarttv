@@ -16,12 +16,14 @@
 
     <!-- Gradiente Escuro de Fundo para Leitura -->
     <View
+        android:id="@+id/viewScrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/scrim_overlay" />
 
     <!-- Cabeçalho Superior: Título, Relógio e Wi-Fi -->
     <LinearLayout
+        android:id="@+id/layoutHeader"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -76,6 +78,7 @@
 
         <!-- Card de Wi-Fi -->
         <LinearLayout
+            android:id="@+id/cardWifi"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
@@ -133,6 +136,189 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal" />
         </HorizontalScrollView>
+    </LinearLayout>
+
+    <!-- OVERLAY DE PAREAMENTO E CONFIGURAÇÃO (Exibido se a TV ainda não foi vinculada ou via tecla MENU) -->
+    <LinearLayout
+        android:id="@+id/layoutPairing"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#07090E"
+        android:orientation="vertical"
+        android:padding="28dp"
+        android:visibility="gone">
+
+        <!-- Barra Superior do Pareamento -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SMART TV MANAGER"
+                android:textColor="#3B82F6"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/bg_clock_pill"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="v1.0.1"
+                android:textColor="#94A3B8"
+                android:textSize="12sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- Status de Conexão com o Servidor -->
+            <TextView
+                android:id="@+id/tvServerStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_wifi_pill"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="8dp"
+                android:text="● Conectando ao Servidor..."
+                android:textColor="#60A5FA"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Conteúdo Principal em 2 Colunas -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <!-- Coluna 1: Pareamento via Painel Web com PIN -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_card_dark"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="OPÇÃO 1: PAREAR PELO PAINEL WEB"
+                    android:textColor="#38BDF8"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.05" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="No computador ou celular, abra http://192.168.168.27/ e clique no botão 'Parear com PIN':"
+                    android:textColor="#CBD5E1"
+                    android:textSize="14sp" />
+
+                <!-- Caixa com o Código PIN em Grande Destaque -->
+                <TextView
+                    android:id="@+id/tvPairingCode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:background="@drawable/bg_pin_box"
+                    android:gravity="center"
+                    android:letterSpacing="0.15"
+                    android:paddingHorizontal="24dp"
+                    android:paddingVertical="18dp"
+                    android:text="--- ---"
+                    android:textColor="#FFFFFF"
+                    android:textSize="44sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvPairingStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="Aguardando confirmação no painel web..."
+                    android:textColor="#60A5FA"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/tvDeviceIdInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="ID deste Dispositivo: TV-..."
+                    android:textColor="#64748B"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- Coluna 2: Seleção Direta de Quarto pelo Controle Remoto -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_card_dark"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="OPÇÃO 2: VINCULAR DIRETAMENTE NO CONTROLE"
+                    android:textColor="#34D399"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.05" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Selecione o Quarto / Local desta TV na lista e pressione OK:"
+                    android:textColor="#CBD5E1"
+                    android:textSize="14sp" />
+
+                <!-- Lista de Quartos Cadastrados no Servidor -->
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginTop="14dp"
+                    android:scrollbars="vertical">
+
+                    <LinearLayout
+                        android:id="@+id/containerAvailableTvs"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </ScrollView>
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Rodapé com Dica de Uso -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="14dp"
+            android:text="Dica: Durante a reprodução dos vídeos, pressione a tecla MENU do controle a qualquer momento para abrir esta tela."
+            android:textColor="#64748B"
+            android:textSize="13sp" />
+
     </LinearLayout>
 
 </FrameLayout>

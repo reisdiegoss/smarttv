@@ -1,9 +1,11 @@
 package com.smarttv.launcher.ui
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.widget.*
@@ -18,9 +20,7 @@ import androidx.media3.ui.PlayerView
 import com.smarttv.launcher.R
 import com.smarttv.launcher.SmartTVApp
 import com.smarttv.launcher.data.api.TVApiService
-import com.smarttv.launcher.data.model.PingRequest
-import com.smarttv.launcher.data.model.ShortcutItem
-import com.smarttv.launcher.data.model.TVConfigResponse
+import com.smarttv.launcher.data.model.*
 import com.smarttv.launcher.manager.AppLauncherManager
 import com.smarttv.launcher.manager.HdmiInputManager
 import com.smarttv.launcher.player.VideoCacheManager
@@ -34,10 +34,15 @@ import java.util.*
 @UnstableApi
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
     private lateinit var playerView: PlayerView
     private var exoPlayer: ExoPlayer? = null
 
-    // UI elements
+    // Launcher UI elements
+    private lateinit var layoutHeader: View
     private lateinit var tvTitle: TextView
     private lateinit var tvSubtitle: TextView
     private lateinit var tvTime: TextView
@@ -46,24 +51,28 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutDock: View
     private lateinit var containerShortcuts: LinearLayout
 
+    // Pairing / Setup UI elements
+    private lateinit var layoutPairing: View
+    private lateinit var tvServerStatus: TextView
+    private lateinit var tvPairingCode: TextView
+    private lateinit var tvPairingStatus: TextView
+    private lateinit var tvDeviceIdInfo: TextView
+    private lateinit var containerAvailableTvs: LinearLayout
+
     private val handler = Handler(Looper.getMainLooper())
     private var currentConfig: TVConfigResponse? = null
     private var autoHideRunnable: Runnable? = null
     private var isDockVisible = true
+    private var isPollingPairStatus = false
+    private var pairPollRunnable: Runnable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Se ainda não foi pareada no painel, abre diretamente a tela com o código PIN
-        if (!SmartTVApp.instance.isPaired()) {
-            startActivity(Intent(this, PairingActivity::class.java))
-            finish()
-            return
-        }
-
         setContentView(R.layout.activity_main)
 
+        // Inicializa elementos da tela de exibição (Launcher)
         playerView = findViewById(R.id.playerView)
+        layoutHeader = findViewById(R.id.layoutHeader)
         tvTitle = findViewById(R.id.tvTitle)
         tvSubtitle = findViewById(R.id.tvSubtitle)
         tvTime = findViewById(R.id.tvTime)
@@ -72,9 +81,26 @@ class MainActivity : AppCompatActivity() {
         layoutDock = findViewById(R.id.layoutDock)
         containerShortcuts = findViewById(R.id.containerShortcuts)
 
+        // Inicializa elementos da tela de configuração / pareamento
+        layoutPairing = findViewById(R.id.layoutPairing)
+        tvServerStatus = findViewById(R.id.tvServerStatus)
+        tvPairingCode = findViewById(R.id.tvPairingCode)
+        tvPairingStatus = findViewById(R.id.tvPairingStatus)
+        tvDeviceIdInfo = findViewById(R.id.tvDeviceIdInfo)
+        containerAvailableTvs = findViewById(R.id.containerAvailableTvs)
+
+        tvDeviceIdInfo.text = "ID deste Dispositivo: ${SmartTVApp.instance.getTvDeviceId()}"
+
         initExoPlayer()
         startClock()
-        loadConfigAndSetup()
+
+        if (!SmartTVApp.instance.isPaired()) {
+            showPairingScreen()
+        } else {
+            showLauncherScreen()
+            loadConfigAndSetup()
+        }
+
         startHeartbeatLoop()
     }
 
@@ -91,6 +117,7 @@ class MainActivity : AppCompatActivity() {
                     playWhenReady = true
                 }
         } catch (e: Exception) {
+            Log.e(TAG, "Fallback simples para ExoPlayer sem cache", e)
             exoPlayer = ExoPlayer.Builder(this)
                 .build()
                 .apply {
@@ -103,6 +130,217 @@ class MainActivity : AppCompatActivity() {
         playerView.useController = false
     }
 
+    /**
+     * Exibe a tela de Pareamento e Configuração (PIN + Lista de Quartos)
+     */
+    private fun showPairingScreen() {
+        layoutPairing.visibility = View.VISIBLE
+        layoutDock.visibility = View.GONE
+        layoutHeader.visibility = View.GONE
+        exoPlayer?.pause()
+
+        requestPairingCodeAndRooms()
+        startPairPolling()
+    }
+
+    /**
+     * Exibe o Launcher Normal (Vídeo em Tela Cheia + Dock + Header)
+     */
+    private fun showLauncherScreen() {
+        stopPairPolling()
+        layoutPairing.visibility = View.GONE
+        layoutDock.visibility = View.VISIBLE
+        layoutHeader.visibility = View.VISIBLE
+        exoPlayer?.play()
+        resetAutoHideTimer()
+    }
+
+    private fun togglePairingOverlay() {
+        if (layoutPairing.visibility == View.VISIBLE) {
+            if (SmartTVApp.instance.isPaired()) {
+                showLauncherScreen()
+            }
+        } else {
+            showPairingScreen()
+        }
+    }
+
+    /**
+     * Solicita o código PIN ao servidor e puxa a lista de TVs/Quartos cadastrados
+     */
+    private fun requestPairingCodeAndRooms() {
+        val deviceId = SmartTVApp.instance.getTvDeviceId()
+        val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
+
+        tvServerStatus.text = "● Conectando ao Servidor..."
+        tvServerStatus.setTextColor(Color.parseColor("#60A5FA"))
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Gera ou recupera o código PIN no backend
+                val pairResp = api.requestPairing(
+                    PairRequest(
+                        deviceId = deviceId,
+                        pairingCode = "",
+                        ipAddress = null,
+                        appVersion = "1.0.1"
+                    )
+                )
+
+                // 2. Busca lista de TVs cadastradas no servidor
+                val tvList = api.listTVs()
+
+                withContext(Dispatchers.Main) {
+                    tvServerStatus.text = "● Conectado ao Servidor (192.168.168.27)"
+                    tvServerStatus.setTextColor(Color.parseColor("#34D399"))
+
+                    tvPairingCode.text = pairResp.pairingCode
+                    tvPairingStatus.text = "Aguardando aprovação no painel ou seleção ao lado..."
+
+                    if (pairResp.isPaired) {
+                        SmartTVApp.instance.setPaired(true)
+                        showLauncherScreen()
+                        loadConfigAndSetup()
+                        return@withContext
+                    }
+
+                    populateRoomsList(tvList)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao conectar ao servidor", e)
+                withContext(Dispatchers.Main) {
+                    tvServerStatus.text = "● Falha ao conectar ao servidor (192.168.168.27)"
+                    tvServerStatus.setTextColor(Color.parseColor("#EF4444"))
+                    tvPairingStatus.text = "Verifique o cabo de rede/Wi-Fi. Tentando novamente..."
+                    handler.postDelayed({ requestPairingCodeAndRooms() }, 5000)
+                }
+            }
+        }
+    }
+
+    /**
+     * Preenche a lista da direita com os botões selecionáveis via controle remoto
+     */
+    private fun populateRoomsList(tvList: List<TVListItem>) {
+        containerAvailableTvs.removeAllViews()
+
+        if (tvList.isEmpty()) {
+            val emptyTv = TextView(this).apply {
+                text = "Nenhum quarto cadastrado ainda.\nCadastre no Painel: http://192.168.168.27/"
+                setTextColor(Color.parseColor("#94A3B8"))
+                textSize = 14f
+                setPadding(0, 20, 0, 0)
+            }
+            containerAvailableTvs.addView(emptyTv)
+            return
+        }
+
+        var firstButton: View? = null
+
+        for (tv in tvList) {
+            val btn = layoutInflater.inflate(R.layout.item_tv_room_button, containerAvailableTvs, false)
+            val nameView = btn.findViewById<TextView>(R.id.tvRoomName)
+            val detailsView = btn.findViewById<TextView>(R.id.tvRoomDetails)
+
+            nameView.text = tv.name
+            val statusText = if (tv.isPaired == true) "Perfil Configurado" else "Novo Quarto"
+            detailsView.text = "${tv.roomGroup ?: "Geral"} • $statusText • Pressione OK para vincular"
+
+            btn.isFocusable = true
+            btn.isClickable = true
+
+            btn.setOnClickListener {
+                bindThisTvToRoom(tv)
+            }
+
+            containerAvailableTvs.addView(btn)
+
+            if (firstButton == null) {
+                firstButton = btn
+            }
+        }
+
+        firstButton?.requestFocus()
+    }
+
+    /**
+     * Vincula esta TV diretamente ao perfil de quarto selecionado pelo controle remoto
+     */
+    private fun bindThisTvToRoom(tv: TVListItem) {
+        val deviceId = SmartTVApp.instance.getTvDeviceId()
+        val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
+
+        tvPairingStatus.text = "Vinculando a '${tv.name}'..."
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                api.bindDevice(
+                    BindDeviceRequest(
+                        tvId = tv.id,
+                        deviceId = deviceId,
+                        ipAddress = null,
+                        appVersion = "1.0.1"
+                    )
+                )
+
+                withContext(Dispatchers.Main) {
+                    SmartTVApp.instance.setPaired(true)
+                    Toast.makeText(this@MainActivity, "TV vinculada a ${tv.name} com sucesso!", Toast.LENGTH_LONG).show()
+                    showLauncherScreen()
+                    loadConfigAndSetup()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao vincular TV", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Erro ao vincular: ${e.message}", Toast.LENGTH_LONG).show()
+                    tvPairingStatus.text = "Falha ao vincular. Tente novamente."
+                }
+            }
+        }
+    }
+
+    /**
+     * Fica ouvindo se o administrador aprovou o PIN no painel web
+     */
+    private fun startPairPolling() {
+        if (isPollingPairStatus) return
+        isPollingPairStatus = true
+
+        pairPollRunnable = object : Runnable {
+            override fun run() {
+                val deviceId = SmartTVApp.instance.getTvDeviceId()
+                val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
+
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        val config = api.getTVConfig(deviceId)
+                        if (config.isPaired) {
+                            withContext(Dispatchers.Main) {
+                                SmartTVApp.instance.setPaired(true)
+                                showLauncherScreen()
+                                applyConfig(config)
+                            }
+                            return@launch
+                        }
+                    } catch (_: Exception) {}
+
+                    if (isPollingPairStatus) {
+                        pairPollRunnable?.let { handler.postDelayed(it, 3000) }
+                    }
+                }
+            }
+        }
+        pairPollRunnable?.let { handler.postDelayed(it, 3000) }
+    }
+
+    private fun stopPairPolling() {
+        isPollingPairStatus = false
+        pairPollRunnable?.let { handler.removeCallbacks(it) }
+    }
+
+    /**
+     * Carrega as configurações completas desta TV (Vídeos, Atalhos, Wi-Fi, SKY HDMI)
+     */
     private fun loadConfigAndSetup() {
         val deviceId = SmartTVApp.instance.getTvDeviceId()
         val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
@@ -113,23 +351,21 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     if (!config.isPaired) {
                         SmartTVApp.instance.setPaired(false)
-                        startActivity(Intent(this@MainActivity, PairingActivity::class.java))
-                        finish()
+                        showPairingScreen()
                         return@withContext
                     }
                     applyConfig(config)
                 }
             } catch (e: Exception) {
-                // Se o servidor retornou 404 (TV desvinculada ou não encontrada), volta para o pareamento
+                Log.e(TAG, "Erro ao carregar config da TV", e)
                 if (e is HttpException && e.code() == 404) {
                     withContext(Dispatchers.Main) {
                         SmartTVApp.instance.setPaired(false)
-                        startActivity(Intent(this@MainActivity, PairingActivity::class.java))
-                        finish()
+                        showPairingScreen()
                     }
                     return@launch
                 }
-                // Em caso de erro temporário de rede, tenta novamente em 10 segundos
+                // Em caso de instabilidade na rede, tenta novamente em 10 segundos
                 handler.postDelayed({ loadConfigAndSetup() }, 10000)
             }
         }
@@ -141,7 +377,7 @@ class MainActivity : AppCompatActivity() {
         // Atualiza textos personalizados
         val custom = config.customSettings ?: emptyMap()
         tvTitle.text = (custom["welcome_title"] as? String) ?: "Bem-vindo ao ${config.name}"
-        tvSubtitle.text = (custom["welcome_subtitle"] as? String) ?: "Aproveite a sua estadia."
+        tvSubtitle.text = (custom["welcome_subtitle"] as? String) ?: "Aproveite a sua estadia com conforto e entretenimento."
         tvWifiSsid.text = (custom["wifi_ssid"] as? String) ?: "Wi-Fi Hotel"
         tvWifiPass.text = "Senha: " + ((custom["wifi_password"] as? String) ?: "12345678")
 
@@ -189,7 +425,7 @@ class MainActivity : AppCompatActivity() {
         btnSky.isFocusable = true
         containerShortcuts.addView(btnSky)
 
-        // Demais aplicativos configurados para esta TV (puxa ícones nativos instalados na TV)
+        // Demais aplicativos configurados para esta TV
         for (sc in config.shortcuts) {
             if (sc.isHdmi) continue
 
@@ -200,7 +436,6 @@ class MainActivity : AppCompatActivity() {
             textApp.text = sc.name
             btnApp.setBackgroundResource(R.drawable.bg_shortcut_item)
 
-            // Puxa o Banner ou Ícone oficial já instalado no sistema Android da TV!
             try {
                 val banner = packageManager.getApplicationBanner(sc.packageName)
                 val icon = packageManager.getApplicationIcon(sc.packageName)
@@ -212,7 +447,6 @@ class MainActivity : AppCompatActivity() {
                     iconApp.setImageResource(R.drawable.ic_hdmi_tv)
                 }
             } catch (e: Exception) {
-                // Se o pacote ainda não estiver instalado no momento, usa fallback
                 iconApp.setImageResource(R.drawable.ic_hdmi_tv)
             }
 
@@ -223,7 +457,6 @@ class MainActivity : AppCompatActivity() {
             containerShortcuts.addView(btnApp)
         }
 
-        // Foca automaticamente no primeiro botão (Sky HDMI)
         btnSky.requestFocus()
     }
 
@@ -237,7 +470,7 @@ class MainActivity : AppCompatActivity() {
             layoutDock.visibility = View.INVISIBLE
             isDockVisible = false
         }
-        handler.postDelayed(autoHideRunnable!!, 15000) // 15 segundos sem tocar no controle
+        handler.postDelayed(autoHideRunnable!!, 15000)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -245,47 +478,66 @@ class MainActivity : AppCompatActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // Pressionar MENU ou SETTINGS no controle abre/fecha a tela de pareamento e configurações
+        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS) {
+            togglePairingOverlay()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
     private fun startClock() {
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
         handler.post(object : Runnable {
             override fun run() {
                 tvTime.text = timeFormat.format(Date())
-                handler.postDelayed(this, 1000)
+                handler.postDelayed(this, 30000)
             }
         })
     }
 
     private fun startHeartbeatLoop() {
-        handler.postDelayed(object : Runnable {
+        handler.post(object : Runnable {
             override fun run() {
                 val deviceId = SmartTVApp.instance.getTvDeviceId()
                 val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
 
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
-                        api.ping(PingRequest(deviceId = deviceId, ipAddress = null))
-                    } catch (_: Exception) {}
+                        val response = api.ping(
+                            PingRequest(
+                                deviceId = deviceId,
+                                ipAddress = null,
+                                appVersion = "1.0.1"
+                            )
+                        )
+                        val isServerPaired = (response["is_paired"] as? Boolean) ?: false
+                        if (SmartTVApp.instance.isPaired() != isServerPaired) {
+                            withContext(Dispatchers.Main) {
+                                SmartTVApp.instance.setPaired(isServerPaired)
+                                if (isServerPaired) {
+                                    showLauncherScreen()
+                                    loadConfigAndSetup()
+                                } else {
+                                    showPairingScreen()
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Heartbeat ping falhou: ${e.message}")
+                    }
                 }
-                handler.postDelayed(this, 30000) // Ping a cada 30 segundos
+
+                handler.postDelayed(this, 30000)
             }
-        }, 30000)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        exoPlayer?.play()
-        resetAutoHideTimer()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        exoPlayer?.pause()
+        })
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        stopPairPolling()
         exoPlayer?.release()
         exoPlayer = null
-        autoHideRunnable?.let { handler.removeCallbacks(it) }
     }
 }
