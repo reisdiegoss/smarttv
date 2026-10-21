@@ -28,8 +28,16 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Acesse o Painel Web Administrativo e informe o código abaixo para vincular esta TV:"
+        android:layout_marginTop="10dp"
+        android:text="1. No computador ou celular, abra o Painel: http://192.168.168.27/"
+        android:textColor="#E2E8F0"
+        android:textSize="20sp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="2. Clique no botão 'Parear com PIN' e informe o código abaixo:"
         android:textColor="#9CA3AF"
         android:textSize="18sp" />
 

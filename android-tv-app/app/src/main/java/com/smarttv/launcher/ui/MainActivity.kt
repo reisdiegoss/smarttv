@@ -27,6 +27,7 @@ import com.smarttv.launcher.player.VideoCacheManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -52,6 +53,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Se ainda não foi pareada no painel, abre diretamente a tela com o código PIN
+        if (!SmartTVApp.instance.isPaired()) {
+            startActivity(Intent(this, PairingActivity::class.java))
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_main)
 
         playerView = findViewById(R.id.playerView)
@@ -103,7 +112,7 @@ class MainActivity : AppCompatActivity() {
                 val config = api.getTVConfig(deviceId)
                 withContext(Dispatchers.Main) {
                     if (!config.isPaired) {
-                        // Se ainda não foi pareada no painel, abre a tela com o código PIN
+                        SmartTVApp.instance.setPaired(false)
                         startActivity(Intent(this@MainActivity, PairingActivity::class.java))
                         finish()
                         return@withContext
@@ -111,7 +120,16 @@ class MainActivity : AppCompatActivity() {
                     applyConfig(config)
                 }
             } catch (e: Exception) {
-                // Em caso de erro de rede, tenta novamente em 10 segundos
+                // Se o servidor retornou 404 (TV desvinculada ou não encontrada), volta para o pareamento
+                if (e is HttpException && e.code() == 404) {
+                    withContext(Dispatchers.Main) {
+                        SmartTVApp.instance.setPaired(false)
+                        startActivity(Intent(this@MainActivity, PairingActivity::class.java))
+                        finish()
+                    }
+                    return@launch
+                }
+                // Em caso de erro temporário de rede, tenta novamente em 10 segundos
                 handler.postDelayed({ loadConfigAndSetup() }, 10000)
             }
         }

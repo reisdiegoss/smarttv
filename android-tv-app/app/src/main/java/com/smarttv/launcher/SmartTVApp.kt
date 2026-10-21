@@ -44,4 +44,12 @@ class SmartTVApp : Application() {
     fun setServerUrl(url: String) {
         prefs.edit().putString("server_url", url).apply()
     }
+
+    fun isPaired(): Boolean {
+        return prefs.getBoolean("is_paired", false)
+    }
+
+    fun setPaired(paired: Boolean) {
+        prefs.edit().putBoolean("is_paired", paired).apply()
+    }
 }
