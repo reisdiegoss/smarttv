@@ -79,13 +79,52 @@ class AppShortcut(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class TVGroup(Base):
+    __tablename__ = "tv_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(150), unique=True, index=True, nullable=False) # e.g. "TV Lobby", "TV Quartos", "TV Vista Mar"
+    description = Column(Text, nullable=True)
+    
+    # Configurações herdadas por padrão pelas TVs deste grupo
+    layout_id = Column(Integer, ForeignKey("layout_presets.id", ondelete="SET NULL"), nullable=True)
+    playlist_id = Column(Integer, ForeignKey("playlists.id", ondelete="SET NULL"), nullable=True)
+    hdmi_input_id = Column(String(150), default="HDMI 1")
+    hdmi_label = Column(String(100), default="TV SKY")
+    selected_shortcuts = Column(JSON, default=list) # e.g. [1, 2, 3]
+    custom_settings = Column(JSON, default=lambda: {
+        "welcome_title": "Seja Bem-vindo(a)!",
+        "welcome_subtitle": "Aproveite a sua estadia com o melhor do entretenimento.",
+        "wifi_ssid": "SmartTV-Guest",
+        "wifi_password": "bemvindoahotel",
+        "show_clock": True,
+        "show_weather": True,
+        "weather_city": "São Paulo",
+        "auto_hide_dock": True,
+        "auto_hide_seconds": 15,
+        "volume_limit": 80,
+        "pin_code": "0000"
+    })
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    layout = relationship("LayoutPreset")
+    playlist = relationship("Playlist")
+    tvs = relationship("SmartTV", back_populates="group")
+
+
 class SmartTV(Base):
     __tablename__ = "smart_tvs"
 
     id = Column(Integer, primary_key=True, index=True)
     device_id = Column(String(100), unique=True, index=True, nullable=False)
     name = Column(String(150), nullable=False) # e.g. "Quarto 101 - Suíte Luxo"
-    room_group = Column(String(100), default="Geral") # e.g. "1º Andar", "Lobby", "Bar"
+    room_group = Column(String(100), default="Geral") # Legado / texto rápido
+    group_id = Column(Integer, ForeignKey("tv_groups.id", ondelete="SET NULL"), nullable=True) # Perfil de Grupo Herdado
+    uh_number = Column(String(50), nullable=True, index=True) # Número da UH / Quarto (ex: "101", "204", "TI")
+    guest_name = Column(String(150), nullable=True) # Nome do hóspede atual (via PMS IFC8 ou manual)
+    pin_code = Column(String(20), nullable=True) # Senha de saída para launcher original (override)
     ip_address = Column(String(50), nullable=True)
     mac_address = Column(String(50), nullable=True)
     pairing_code = Column(String(20), index=True, nullable=True)
@@ -93,7 +132,7 @@ class SmartTV(Base):
     is_online = Column(Boolean, default=False)
     last_ping = Column(DateTime, nullable=True)
     
-    # TV Configuration
+    # TV Configuration (Se null, herda do grupo)
     layout_id = Column(Integer, ForeignKey("layout_presets.id", ondelete="SET NULL"), nullable=True)
     playlist_id = Column(Integer, ForeignKey("playlists.id", ondelete="SET NULL"), nullable=True)
     
@@ -122,6 +161,7 @@ class SmartTV(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    group = relationship("TVGroup", back_populates="tvs")
     layout = relationship("LayoutPreset", back_populates="tvs")
     playlist = relationship("Playlist", back_populates="tvs")
     logs = relationship("DeviceLog", back_populates="tv", cascade="all, delete-orphan")

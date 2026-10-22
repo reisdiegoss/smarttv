@@ -71,7 +71,21 @@
             android:textSize="14sp"
             android:textStyle="bold" />
 
-        <!-- 4. Ajustes Internos (HDMI, Quarto, Apps) -->
+        <!-- 4. Atualizar App para a Última Versão (OTA via Servidor) -->
+        <Button
+            android:id="@+id/btnActionUpdateApp"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_chip_button"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="📥 Atualizar App para Última Versão (OTA Direto do Servidor)"
+            android:textColor="#10B981"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- 5. Ajustes Internos (HDMI, Quarto, Apps) -->
         <Button
             android:id="@+id/btnActionOpenSettings"
             android:layout_width="match_parent"

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Tv, Save, CheckSquare, Square, Layers, Film, Wifi, QrCode, Upload, Trash2, Smartphone, Key, Eye, Sliders, User, Building, Lock } from 'lucide-react';
+import { X, Tv, Save, CheckSquare, Square, Layers, Film, Wifi, QrCode, Upload, Trash2, Smartphone, Key, Eye, Sliders, User, Building, Lock, FolderTree } from 'lucide-react';
 
-export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlists, shortcuts }) {
+export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlists, shortcuts, groups = [] }) {
   const [name, setName] = useState('');
   const [roomGroup, setRoomGroup] = useState('Geral');
+  const [groupId, setGroupId] = useState('');
   const [layoutId, setLayoutId] = useState('');
   const [playlistId, setPlaylistId] = useState('');
   const [deviceId, setDeviceId] = useState('');
@@ -23,7 +24,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
     auto_hide_seconds: 15,
     uh_number: '',
     guest_name: '',
-    admin_exit_pin: '1234'
+    admin_exit_pin: '0000'
   });
   const [uploadingQr, setUploadingQr] = useState(false);
   const fileInputRef = useRef(null);
@@ -36,6 +37,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
     if (tv) {
       setName(tv.name || '');
       setRoomGroup(tv.room_group || 'Geral');
+      setGroupId(tv.group_id ? String(tv.group_id) : '');
       setLayoutId(tv.layout_id || (layouts[0]?.id || ''));
       setPlaylistId(tv.playlist_id || (playlists[0]?.id || ''));
       setDeviceId(tv.device_id || '');
@@ -64,15 +66,16 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
           wifi_qr_size: tv.custom_settings.wifi_qr_size || 110,
           auto_hide_dock: tv.custom_settings.auto_hide_dock ?? false,
           auto_hide_seconds: tv.custom_settings.auto_hide_seconds || 15,
-          uh_number: tv.custom_settings.uh_number || '',
-          guest_name: tv.custom_settings.guest_name || '',
-          admin_exit_pin: tv.custom_settings.admin_exit_pin || '1234',
+          uh_number: tv.uh_number || tv.custom_settings.uh_number || '',
+          guest_name: tv.guest_name || tv.custom_settings.guest_name || '',
+          admin_exit_pin: tv.pin_code || tv.custom_settings.admin_exit_pin || tv.custom_settings.pin_code || '0000',
           ...tv.custom_settings
         });
       }
     } else {
       setName('');
       setRoomGroup('Geral');
+      setGroupId(groups[0]?.id ? String(groups[0].id) : '');
       setLayoutId(layouts[0]?.id || '');
       setPlaylistId('');
       setDeviceId('');
@@ -92,7 +95,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
         auto_hide_seconds: 15,
         uh_number: '',
         guest_name: '',
-        admin_exit_pin: '1234'
+        admin_exit_pin: '0000'
       });
     }
   }, [isOpen, tv?.id]);
@@ -143,10 +146,18 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
     e.preventDefault();
     if (!name.trim()) return alert('Informe o nome da TV');
 
+    const cleanPin = customSettings.admin_exit_pin ? customSettings.admin_exit_pin.trim() : '0000';
+    const cleanUh = customSettings.uh_number ? customSettings.uh_number.trim() : '';
+    const cleanGuest = customSettings.guest_name ? customSettings.guest_name.trim() : '';
+
     onSave({
       id: tv?.id,
       name,
       room_group: roomGroup,
+      group_id: groupId ? parseInt(groupId) : null,
+      uh_number: cleanUh || undefined,
+      guest_name: cleanGuest || undefined,
+      pin_code: cleanPin,
       layout_id: layoutId ? parseInt(layoutId) : null,
       playlist_id: playlistId ? parseInt(playlistId) : null,
       device_id: deviceId.trim() || undefined,
@@ -156,10 +167,16 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
       selected_shortcuts: selectedShortcuts,
       custom_settings: {
         ...customSettings,
+        uh_number: cleanUh,
+        guest_name: cleanGuest,
+        pin_code: cleanPin,
+        admin_exit_pin: cleanPin,
         hide_hdmi: !enableHdmi
       }
     });
   };
+
+  const selectedGroupObj = groups.find(g => String(g.id) === String(groupId));
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -188,10 +205,10 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Seção 1: Identificação Básica & Hospitalidade (UH e Hóspede) */}
+            {/* Seção 1: Identificação Básica & Grupo Herdado */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Nome da TV / Localização</label>
+                <label className="form-label">Nome da TV / Localização *</label>
                 <input 
                   type="text" 
                   className="form-input" 
@@ -203,14 +220,24 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Grupo / Setor</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Ex: 1º Andar, Recepção, TI"
-                  value={roomGroup}
-                  onChange={e => setRoomGroup(e.target.value)}
-                />
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#38bdf8' }}>
+                  <FolderTree size={14} /> Grupo / Perfil de Herança
+                </label>
+                <select
+                  className="form-input"
+                  value={groupId}
+                  onChange={e => setGroupId(e.target.value)}
+                >
+                  <option value="">Nenhum (Configuração Individual)</option>
+                  {groups.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+                {selectedGroupObj && (
+                  <small style={{ color: '#38bdf8', fontSize: '0.72rem', display: 'block', marginTop: 3 }}>
+                    ✓ Herda layout, playlist e HDMI de '{selectedGroupObj.name}'
+                  </small>
+                )}
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
@@ -233,7 +260,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="Ex: Diego Reis (ou via integração PMS)"
+                  placeholder="Ex: Diego Reis (ou via PMS IFC8)"
                   value={customSettings.guest_name || ''}
                   onChange={e => {
                     const gName = e.target.value;

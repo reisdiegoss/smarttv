@@ -95,11 +95,54 @@ class AppShortcutOut(AppShortcutBase):
     class Config:
         from_attributes = True
 
+# TV Group DTOs
+class TVGroupBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    layout_id: Optional[int] = None
+    playlist_id: Optional[int] = None
+    hdmi_input_id: Optional[str] = "HDMI 1"
+    hdmi_label: Optional[str] = "TV SKY"
+    selected_shortcuts: Optional[List[int]] = []
+    custom_settings: Optional[Dict[str, Any]] = None
+
+class TVGroupCreate(TVGroupBase):
+    pass
+
+class TVGroupUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    layout_id: Optional[int] = None
+    playlist_id: Optional[int] = None
+    hdmi_input_id: Optional[str] = None
+    hdmi_label: Optional[str] = None
+    selected_shortcuts: Optional[List[int]] = None
+    custom_settings: Optional[Dict[str, Any]] = None
+
+class TVGroupOut(TVGroupBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    tv_count: Optional[int] = 0
+    layout: Optional[LayoutPresetOut] = None
+    playlist: Optional[PlaylistOut] = None
+
+    class Config:
+        from_attributes = True
+
+class BulkAssignGroupRequest(BaseModel):
+    tv_ids: List[int]
+    group_id: Optional[int] = None
+
 # SmartTV DTOs
 class SmartTVCreate(BaseModel):
     device_id: str
     name: str
     room_group: Optional[str] = "Geral"
+    group_id: Optional[int] = None
+    uh_number: Optional[str] = None
+    guest_name: Optional[str] = None
+    pin_code: Optional[str] = None
     ip_address: Optional[str] = None
     mac_address: Optional[str] = None
     layout_id: Optional[int] = None
@@ -112,6 +155,10 @@ class SmartTVCreate(BaseModel):
 class SmartTVUpdate(BaseModel):
     name: Optional[str] = None
     room_group: Optional[str] = None
+    group_id: Optional[int] = None
+    uh_number: Optional[str] = None
+    guest_name: Optional[str] = None
+    pin_code: Optional[str] = None
     layout_id: Optional[int] = None
     playlist_id: Optional[int] = None
     hdmi_input_id: Optional[str] = None
@@ -138,6 +185,9 @@ class SmartTVClaimRequest(BaseModel):
     pairing_code: str
     name: str
     room_group: Optional[str] = "Geral"
+    group_id: Optional[int] = None
+    uh_number: Optional[str] = None
+    guest_name: Optional[str] = None
     layout_id: Optional[int] = None
     playlist_id: Optional[int] = None
     hdmi_input_id: Optional[str] = "HDMI 1"
@@ -169,6 +219,11 @@ class SmartTVOut(BaseModel):
     device_id: str
     name: str
     room_group: str
+    group_id: Optional[int] = None
+    group_name: Optional[str] = None
+    uh_number: Optional[str] = None
+    guest_name: Optional[str] = None
+    pin_code: Optional[str] = None
     ip_address: Optional[str] = None
     mac_address: Optional[str] = None
     pairing_code: Optional[str] = None
@@ -187,6 +242,7 @@ class SmartTVOut(BaseModel):
     
     layout: Optional[LayoutPresetOut] = None
     playlist: Optional[PlaylistOut] = None
+    group: Optional[TVGroupOut] = None
 
     class Config:
         from_attributes = True

@@ -3,7 +3,8 @@ import {
   Tv, MonitorPlay, Film, Layers, Radio, Plus, RefreshCw, 
   Settings, CheckCircle2, AlertCircle, Wifi, Play, Edit, 
   Trash2, QrCode, HardDrive, Eye, ExternalLink, Cpu,
-  Shield, Download, LogOut, User as UserIcon, Send
+  Shield, Download, LogOut, User as UserIcon, Send,
+  FolderTree, Building2
 } from 'lucide-react';
 
 import TVSimulator from './components/TVSimulator';
@@ -14,6 +15,8 @@ import LayoutModal from './components/LayoutModal';
 import BrandAppIcon from './components/BrandAppIcon';
 import LoginView from './components/LoginView';
 import AuditTrailView from './components/AuditTrailView';
+import GroupsView from './components/GroupsView';
+import PMSIntegrationView from './components/PMSIntegrationView';
 
 export default function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('smarttv_token'));
@@ -33,8 +36,10 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'tvs', 'simulator', 'playlists', 'layouts', 'shortcuts', 'audit'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'tvs', 'simulator', 'playlists', 'layouts', 'shortcuts', 'groups', 'pms', 'audit'
   const [tvs, setTvs] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState('ALL');
   const [layouts, setLayouts] = useState([]);
   const [playlists, setPlaylists] = useState([]);
   const [shortcuts, setShortcuts] = useState([]);
@@ -59,12 +64,13 @@ export default function App() {
   // Load all initial data from backend API
   const loadData = async () => {
     try {
-      const [tvsRes, layoutsRes, playlistsRes, shortcutsRes, mediaRes] = await Promise.all([
+      const [tvsRes, layoutsRes, playlistsRes, shortcutsRes, mediaRes, groupsRes] = await Promise.all([
         fetch('/api/tvs').then(r => r.json()),
         fetch('/api/layouts').then(r => r.json()),
         fetch('/api/playlists').then(r => r.json()),
         fetch('/api/shortcuts').then(r => r.json()),
-        fetch('/api/media').then(r => r.json())
+        fetch('/api/media').then(r => r.json()),
+        fetch('/api/groups').then(r => r.json()).catch(() => [])
       ]);
 
       setTvs(tvsRes || []);
@@ -72,6 +78,7 @@ export default function App() {
       setPlaylists(playlistsRes || []);
       setShortcuts(shortcutsRes || []);
       setMediaList(mediaRes || []);
+      setGroups(groupsRes || []);
       setServerOnline(true);
 
       // Select first TV for simulator if none selected
@@ -341,10 +348,22 @@ export default function App() {
             <Cpu size={18} /> Visão Geral
           </div>
           <div 
+            className={`nav-item ${activeTab === 'groups' ? 'active' : ''}`}
+            onClick={() => setActiveTab('groups')}
+          >
+            <FolderTree size={18} /> Perfis de Grupo ({groups.length})
+          </div>
+          <div 
             className={`nav-item ${activeTab === 'tvs' ? 'active' : ''}`}
             onClick={() => setActiveTab('tvs')}
           >
             <Tv size={18} /> Smart TVs ({totalTvs})
+          </div>
+          <div 
+            className={`nav-item ${activeTab === 'pms' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pms')}
+          >
+            <Building2 size={18} /> Integração PMS (IFC8)
           </div>
           <div 
             className={`nav-item ${activeTab === 'simulator' ? 'active' : ''}`}
@@ -412,7 +431,9 @@ export default function App() {
           <div>
             <h1 className="page-title">
               {activeTab === 'dashboard' && 'Painel de Controle'}
+              {activeTab === 'groups' && 'Perfis & Grupos de TV com Herança'}
               {activeTab === 'tvs' && 'Gerenciamento de Smart TVs'}
+              {activeTab === 'pms' && 'Integração Hospitality PMS (IFC8 / FIAS)'}
               {activeTab === 'simulator' && 'Simulador em Tempo Real da TV'}
               {activeTab === 'playlists' && 'Playlists & Mídias de Vídeo'}
               {activeTab === 'layouts' && 'Personalizador de Layouts da Launcher'}
@@ -421,7 +442,9 @@ export default function App() {
             </h1>
             <p className="page-subtitle">
               {activeTab === 'dashboard' && 'Status das TVs na rede, reprodução de vídeo e controle individualizado.'}
+              {activeTab === 'groups' && 'Crie padrões de layout, playlist e HDMI para Lobby, Quartos e Vista Mar com herança.'}
               {activeTab === 'tvs' && 'Configure o nome, playlist, atalhos de apps e HDMI individual de cada TV.'}
+              {activeTab === 'pms' && 'Servidor IFC8 (192.168.162.18) integrando Thexpos, Vingcard e Leucotron em tempo real.'}
               {activeTab === 'simulator' && 'Teste e interaja com a Launcher exatamente como o hóspede/cliente vê na TV.'}
               {activeTab === 'playlists' && 'Gerencie os vídeos MP4 que rodam em sequência contínua no APK.'}
               {activeTab === 'layouts' && 'Escolha entre Luxo Hotel, Split Screen, Vitrine ou Mural Digital.'}
@@ -432,8 +455,8 @@ export default function App() {
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <a 
-              href="/smarttv-launcher.apk" 
-              download="smarttv-launcher.apk"
+              href="/fasano-smarttv-v1.0.5.apk" 
+              download="fasano-smarttv-v1.0.5.apk"
               className="btn btn-secondary"
               style={{
                 display: 'inline-flex',
@@ -442,11 +465,12 @@ export default function App() {
                 background: 'rgba(59, 130, 246, 0.12)',
                 borderColor: 'rgba(59, 130, 246, 0.35)',
                 color: '#60a5fa',
-                textDecoration: 'none'
+                textDecoration: 'none',
+                fontWeight: 600
               }}
-              title="Baixar APK instalador da Launcher para Android / Google TV"
+              title="Baixar APK instalador da Launcher para Android / Google TV (v1.0.5)"
             >
-              <Download size={16} /> Baixar APK da TV
+              <Download size={16} /> Baixar APK v1.0.5
             </a>
 
             <button 
@@ -676,7 +700,7 @@ export default function App() {
         {/* VIEW 2: SMART TVS MANAGEMENT TABLE & CARDS */}
         {activeTab === 'tvs' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                 Total de <strong>{tvs.length}</strong> televisores cadastrados no sistema.
               </div>
@@ -688,14 +712,50 @@ export default function App() {
               </button>
             </div>
 
+            {/* Filtros Rápidos por Grupo de TV */}
+            {groups.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+                <button 
+                  className={`btn btn-sm ${selectedGroupFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setSelectedGroupFilter('ALL')}
+                >
+                  Todos ({tvs.length})
+                </button>
+                {groups.map(g => {
+                  const count = tvs.filter(t => t.group_id === g.id).length;
+                  return (
+                    <button 
+                      key={g.id}
+                      className={`btn btn-sm ${String(selectedGroupFilter) === String(g.id) ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setSelectedGroupFilter(String(g.id))}
+                    >
+                      {g.name} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="tv-grid">
-              {tvs.map(tv => (
+              {(selectedGroupFilter === 'ALL' ? tvs : tvs.filter(t => String(t.group_id) === String(selectedGroupFilter))).map(tv => (
                 <div key={tv.id} className="glass-card tv-card">
                   <div className="tv-card-header">
                     <div>
                       <h4 style={{ fontSize: '1.15rem', color: '#fff' }}>{tv.name}</h4>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        {tv.room_group} • Código PIN: <strong>{tv.pairing_code || '---'}</strong>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+                        {tv.group_name && (
+                          <span style={{
+                            background: 'rgba(59, 130, 246, 0.15)',
+                            color: '#60a5fa',
+                            padding: '1px 7px',
+                            borderRadius: 4,
+                            fontSize: '0.72rem',
+                            fontWeight: 600
+                          }}>
+                            {tv.group_name}
+                          </span>
+                        )}
+                        <span>{tv.room_group} • PIN: <strong>{tv.pairing_code || '---'}</strong></span>
                       </div>
                     </div>
                     <span className={`badge ${tv.is_online ? 'badge-online' : 'badge-offline'}`}>
@@ -1028,6 +1088,26 @@ export default function App() {
           </div>
         )}
 
+        {/* VIEW: TV GROUPS & INHERITANCE */}
+        {activeTab === 'groups' && (
+          <GroupsView 
+            groups={groups}
+            tvs={tvs}
+            layouts={layouts}
+            playlists={playlists}
+            shortcuts={shortcuts}
+            onRefresh={loadData}
+          />
+        )}
+
+        {/* VIEW: PMS HOSPITALITY INTEGRATION (IFC8 / FIAS) */}
+        {activeTab === 'pms' && (
+          <PMSIntegrationView 
+            tvs={tvs}
+            onRefresh={loadData}
+          />
+        )}
+
         {/* VIEW 7: AUDIT TRAIL */}
         {activeTab === 'audit' && (
           <AuditTrailView />
@@ -1043,6 +1123,7 @@ export default function App() {
         layouts={layouts}
         playlists={playlists}
         shortcuts={shortcuts}
+        groups={groups}
       />
 
       <PairModal 

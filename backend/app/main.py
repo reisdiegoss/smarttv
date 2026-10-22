@@ -3,18 +3,21 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.core.config import settings
 from app.core.database import engine, Base, AsyncSessionLocal
-from app.models.schema import LayoutPreset, AppShortcut, SmartTV, Playlist, PlaylistItem, Media, User
+from app.models.schema import LayoutPreset, AppShortcut, SmartTV, Playlist, PlaylistItem, Media, User, TVGroup
 from app.api.layouts import DEFAULT_LAYOUTS, router as layouts_router
 from app.api.shortcuts import DEFAULT_SHORTCUTS, router as shortcuts_router
 from app.api.media import router as media_router
 from app.api.playlists import router as playlists_router
 from app.api.tvs import router as tvs_router
+from app.api.groups import router as groups_router
+from app.api.pms import router as pms_router
 from app.api.auth import router as auth_router
 from app.services.audit import hash_password
+from app.services.fias_service import fias_service
 
 # WebSocket connection manager for live dashboard updates
 class ConnectionManager:
@@ -196,15 +199,118 @@ async def seed_initial_data():
             session.add(admin_user)
             await session.commit()
 
+        # 6. Seed Default TV Groups if empty
+        existing_groups = await session.execute(select(TVGroup))
+        if not existing_groups.scalars().first():
+            print("[SEED] Criando grupos padrão de TVs (Lobby, Quartos, Vista Mar)...")
+            l_res = await session.execute(select(LayoutPreset))
+            d_layout = l_res.scalars().first()
+            p_res = await session.execute(select(Playlist))
+            d_playlist = p_res.scalars().first()
+
+            g_lobby = TVGroup(
+                name="TV Lobby",
+                description="TVs instaladas na Recepção, Hall de Entrada e Restaurante. Vídeos institucionais e canais corporativos.",
+                layout_id=d_layout.id if d_layout else None,
+                playlist_id=d_playlist.id if d_playlist else None,
+                hdmi_input_id="HDMI 1",
+                hdmi_label="TV Lobby SKY",
+                selected_shortcuts=[1, 2],
+                custom_settings={
+                    "welcome_title": "Bem-vindo ao Hotel Fasano",
+                    "welcome_subtitle": "Desfrute de uma experiência única de hospitalidade e gastronomia.",
+                    "wifi_ssid": "Fasano-Lobby-5G",
+                    "wifi_password": "fasanohospitality",
+                    "show_clock": True,
+                    "show_weather": True,
+                    "weather_city": "São Paulo",
+                    "auto_hide_dock": True,
+                    "auto_hide_seconds": 20,
+                    "volume_limit": 60,
+                    "pin_code": "0000"
+                }
+            )
+            g_quartos = TVGroup(
+                name="TV Quartos",
+                description="TVs dos apartamentos e suítes standard. Vídeos de relaxamento, Netflix, YouTube e Sky TV.",
+                layout_id=d_layout.id if d_layout else None,
+                playlist_id=d_playlist.id if d_playlist else None,
+                hdmi_input_id="HDMI 1",
+                hdmi_label="TV SKY",
+                selected_shortcuts=[1, 2, 3, 4],
+                custom_settings={
+                    "welcome_title": "Seja Bem-vindo(a)!",
+                    "welcome_subtitle": "Aproveite a sua estadia com o melhor do conforto e entretenimento.",
+                    "wifi_ssid": "Fasano-Guest-HighSpeed",
+                    "wifi_password": "fasanobemvindo",
+                    "show_clock": True,
+                    "show_weather": True,
+                    "weather_city": "São Paulo",
+                    "auto_hide_dock": True,
+                    "auto_hide_seconds": 15,
+                    "volume_limit": 80,
+                    "pin_code": "0000"
+                }
+            )
+            g_vistamar = TVGroup(
+                name="TV Vista Mar",
+                description="Suítes especiais e com vista mar. Experiência exclusiva com personalização VIP e canais dedicados.",
+                layout_id=d_layout.id if d_layout else None,
+                playlist_id=d_playlist.id if d_playlist else None,
+                hdmi_input_id="HDMI 1",
+                hdmi_label="SKY Premium 4K",
+                selected_shortcuts=[1, 2, 3, 4, 5],
+                custom_settings={
+                    "welcome_title": "Bem-vindo(a) à Suíte Vista Mar",
+                    "welcome_subtitle": "Uma vista inesquecível e serviços exclusivos à sua disposição 24 horas.",
+                    "wifi_ssid": "Fasano-VistaMar-VIP",
+                    "wifi_password": "fasanovistamar",
+                    "show_clock": True,
+                    "show_weather": True,
+                    "weather_city": "Salvador",
+                    "auto_hide_dock": True,
+                    "auto_hide_seconds": 15,
+                    "volume_limit": 85,
+                    "pin_code": "0000"
+                }
+            )
+            session.add_all([g_lobby, g_quartos, g_vistamar])
+            await session.commit()
+
+            # Atribuir TVs existentes aos grupos correspondentes
+            tvs_res = await session.execute(select(SmartTV))
+            all_tvs = tvs_res.scalars().all()
+            for tv in all_tvs:
+                if not tv.group_id:
+                    if "lobby" in tv.name.lower() or (tv.room_group and "recep" in tv.room_group.lower()):
+                        tv.group_id = g_lobby.id
+                    else:
+                        tv.group_id = g_quartos.id
+            await session.commit()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migração segura e não-destrutiva de novas colunas
+        for col, col_type in [
+            ("group_id", "INTEGER REFERENCES tv_groups(id)"),
+            ("uh_number", "VARCHAR(50)"),
+            ("guest_name", "VARCHAR(150)"),
+            ("pin_code", "VARCHAR(20)")
+        ]:
+            try:
+                await conn.execute(text(f"ALTER TABLE smart_tvs ADD COLUMN {col} {col_type};"))
+            except Exception:
+                pass  # Coluna já existe
     await seed_initial_data()
+    # Inicia ouvinte em segundo plano FIAS (IFC8 192.168.162.18)
+    fias_service.start()
     yield
     # Shutdown
+    fias_service.stop()
     await engine.dispose()
 
 app = FastAPI(
@@ -226,6 +332,8 @@ app.add_middleware(
 # API Routers
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(tvs_router, prefix=settings.API_V1_STR)
+app.include_router(groups_router, prefix=settings.API_V1_STR)
+app.include_router(pms_router, prefix=settings.API_V1_STR)
 app.include_router(media_router, prefix=settings.API_V1_STR)
 app.include_router(playlists_router, prefix=settings.API_V1_STR)
 app.include_router(layouts_router, prefix=settings.API_V1_STR)

@@ -8,13 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
-from app.models.schema import SmartTV, LayoutPreset, Playlist, PlaylistItem, AppShortcut, DeviceLog
+from app.models.schema import SmartTV, TVGroup, LayoutPreset, Playlist, PlaylistItem, AppShortcut, DeviceLog
 from app.services.audit import record_audit_log
 from app.models.dto import (
     SmartTVOut, SmartTVCreate, SmartTVUpdate,
     SmartTVPairRequest, SmartTVClaimRequest, SmartTVPingRequest,
     SmartTVBindRequest, SmartTVQuickUpdateRequest, SmartTVAssignDeviceRequest, TVClientConfig,
-    SmartTVPmsSyncRequest
+    SmartTVPmsSyncRequest, TVGroupOut
 )
 
 router = APIRouter(prefix="/tvs", tags=["Smart TVs"])
@@ -29,6 +29,8 @@ async def list_tvs(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SmartTV)
         .options(
+            selectinload(SmartTV.group).selectinload(TVGroup.layout),
+            selectinload(SmartTV.group).selectinload(TVGroup.playlist),
             selectinload(SmartTV.layout),
             selectinload(SmartTV.playlist).selectinload(Playlist.items).selectinload(PlaylistItem.media)
         )
@@ -43,6 +45,7 @@ async def list_tvs(db: AsyncSession = Depends(get_db)):
             tv.is_online = (now - tv.last_ping) < timedelta(seconds=90)
         else:
             tv.is_online = False
+        tv.group_name = tv.group.name if tv.group else None
             
     return tvs
 
@@ -57,6 +60,10 @@ async def create_tv(payload: SmartTVCreate, request: Request, db: AsyncSession =
         device_id=payload.device_id,
         name=payload.name,
         room_group=payload.room_group or "Geral",
+        group_id=payload.group_id,
+        uh_number=payload.uh_number,
+        guest_name=payload.guest_name,
+        pin_code=payload.pin_code,
         ip_address=payload.ip_address,
         mac_address=payload.mac_address,
         layout_id=payload.layout_id,
@@ -81,6 +88,10 @@ async def create_tv(payload: SmartTVCreate, request: Request, db: AsyncSession =
         new_values={
             "name": tv.name,
             "room_group": tv.room_group,
+            "group_id": tv.group_id,
+            "uh_number": tv.uh_number,
+            "guest_name": tv.guest_name,
+            "pin_code": tv.pin_code,
             "layout_id": tv.layout_id,
             "playlist_id": tv.playlist_id,
             "hdmi_input_id": tv.hdmi_input_id,
@@ -93,18 +104,24 @@ async def create_tv(payload: SmartTVCreate, request: Request, db: AsyncSession =
     result = await db.execute(
         select(SmartTV)
         .options(
+            selectinload(SmartTV.group).selectinload(TVGroup.layout),
+            selectinload(SmartTV.group).selectinload(TVGroup.playlist),
             selectinload(SmartTV.layout),
             selectinload(SmartTV.playlist).selectinload(Playlist.items).selectinload(PlaylistItem.media)
         )
         .where(SmartTV.id == tv.id)
     )
-    return result.scalar_one()
+    new_tv = result.scalar_one()
+    new_tv.group_name = new_tv.group.name if new_tv.group else None
+    return new_tv
 
 @router.get("/{tv_id}", response_model=SmartTVOut)
 async def get_tv(tv_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SmartTV)
         .options(
+            selectinload(SmartTV.group).selectinload(TVGroup.layout),
+            selectinload(SmartTV.group).selectinload(TVGroup.playlist),
             selectinload(SmartTV.layout),
             selectinload(SmartTV.playlist).selectinload(Playlist.items).selectinload(PlaylistItem.media)
         )
@@ -118,6 +135,7 @@ async def get_tv(tv_id: int, db: AsyncSession = Depends(get_db)):
         tv.is_online = (datetime.utcnow() - tv.last_ping) < timedelta(seconds=90)
     else:
         tv.is_online = False
+    tv.group_name = tv.group.name if tv.group else None
 
     return tv
 
@@ -125,7 +143,11 @@ async def get_tv(tv_id: int, db: AsyncSession = Depends(get_db)):
 async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SmartTV)
-        .options(selectinload(SmartTV.layout), selectinload(SmartTV.playlist))
+        .options(
+            selectinload(SmartTV.group),
+            selectinload(SmartTV.layout),
+            selectinload(SmartTV.playlist)
+        )
         .where(SmartTV.id == tv_id)
     )
     tv = result.scalar_one_or_none()
@@ -136,6 +158,10 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
     old_values = {
         "name": tv.name,
         "room_group": tv.room_group,
+        "group_id": tv.group_id,
+        "uh_number": tv.uh_number,
+        "guest_name": tv.guest_name,
+        "pin_code": tv.pin_code,
         "layout_id": tv.layout_id,
         "playlist_id": tv.playlist_id,
         "hdmi_input_id": tv.hdmi_input_id,
@@ -148,6 +174,28 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
         tv.name = payload.name
     if payload.room_group is not None:
         tv.room_group = payload.room_group
+    if "group_id" in payload.model_fields_set:
+        tv.group_id = payload.group_id
+    if payload.uh_number is not None:
+        tv.uh_number = payload.uh_number.strip()
+        current = dict(tv.custom_settings or {})
+        current["uh_number"] = tv.uh_number
+        tv.custom_settings = current
+    if payload.guest_name is not None:
+        tv.guest_name = payload.guest_name.strip()
+        current = dict(tv.custom_settings or {})
+        if tv.guest_name:
+            current["guest_name"] = tv.guest_name
+            current["welcome_title"] = f"Sr(a). {tv.guest_name}, Bem-vindo(a) ao Fasano"
+        else:
+            current.pop("guest_name", None)
+            current["welcome_title"] = "Seja Bem-vindo(a) ao Fasano"
+        tv.custom_settings = current
+    if payload.pin_code is not None:
+        tv.pin_code = payload.pin_code.strip()
+        current = dict(tv.custom_settings or {})
+        current["pin_code"] = tv.pin_code
+        tv.custom_settings = current
     if "layout_id" in payload.model_fields_set:
         tv.layout_id = payload.layout_id
     if "playlist_id" in payload.model_fields_set:
@@ -629,12 +677,13 @@ async def pms_sync_guest(payload: SmartTVPmsSyncRequest, request: Request, db: A
         "guest_name": payload.guest_name
     }
 
-# Full Config Endpoint consumed by Android APK
 @router.get("/config/{device_id}", response_model=TVClientConfig)
 async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SmartTV)
         .options(
+            selectinload(SmartTV.group).selectinload(TVGroup.layout),
+            selectinload(SmartTV.group).selectinload(TVGroup.playlist).selectinload(Playlist.items).selectinload(PlaylistItem.media),
             selectinload(SmartTV.layout),
             selectinload(SmartTV.playlist).selectinload(Playlist.items).selectinload(PlaylistItem.media)
         )
@@ -644,26 +693,46 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
     if not tv:
         raise HTTPException(status_code=404, detail="TV não encontrada")
 
-    # Load shortcuts
+    grp = tv.group
+
+    # 1. Configurações Customizadas com Herança
+    merged_settings = dict(grp.custom_settings or {}) if grp else {}
+    merged_settings.update(dict(tv.custom_settings or {}))
+
+    # Vinculação de UH e Hóspede (Integração PMS IFC8)
+    if tv.uh_number:
+        merged_settings["uh_number"] = tv.uh_number
+    if tv.guest_name:
+        merged_settings["guest_name"] = tv.guest_name
+        merged_settings["welcome_title"] = f"Sr(a). {tv.guest_name}, Bem-vindo(a) ao Fasano"
+
+    # Senha de saída para launcher original (PIN do painel)
+    effective_pin = tv.pin_code or merged_settings.get("pin_code") or (grp.custom_settings.get("pin_code") if grp and grp.custom_settings else "0000") or "0000"
+    merged_settings["pin_code"] = effective_pin
+
+    # 2. Atalhos com Herança
+    effective_shortcut_ids = None
+    if tv.selected_shortcuts and len(tv.selected_shortcuts) > 0:
+        effective_shortcut_ids = tv.selected_shortcuts
+    elif grp and grp.selected_shortcuts and len(grp.selected_shortcuts) > 0:
+        effective_shortcut_ids = grp.selected_shortcuts
+
     shortcuts_data = []
-    if tv.selected_shortcuts is not None:
-        if len(tv.selected_shortcuts) > 0:
-            sc_res = await db.execute(select(AppShortcut).where(AppShortcut.id.in_(tv.selected_shortcuts)))
-            shortcuts = sc_res.scalars().all()
-            sc_dict = {s.id: s for s in shortcuts}
-            for sid in tv.selected_shortcuts:
-                if sid in sc_dict:
-                    s = sc_dict[sid]
-                    shortcuts_data.append({
-                        "id": s.id,
-                        "name": s.name,
-                        "package_name": s.package_name,
-                        "icon_name": s.icon_name,
-                        "is_hdmi": s.is_hdmi,
-                        "is_system_app": s.is_system_app
-                    })
-        else:
-            shortcuts_data = []
+    if effective_shortcut_ids is not None:
+        sc_res = await db.execute(select(AppShortcut).where(AppShortcut.id.in_(effective_shortcut_ids)))
+        shortcuts = sc_res.scalars().all()
+        sc_dict = {s.id: s for s in shortcuts}
+        for sid in effective_shortcut_ids:
+            if sid in sc_dict:
+                s = sc_dict[sid]
+                shortcuts_data.append({
+                    "id": s.id,
+                    "name": s.name,
+                    "package_name": s.package_name,
+                    "icon_name": s.icon_name,
+                    "is_hdmi": s.is_hdmi,
+                    "is_system_app": s.is_system_app
+                })
     else:
         # Fallback to default apps (non-HDMI)
         sc_res = await db.execute(select(AppShortcut).order_by(AppShortcut.default_order.asc()))
@@ -678,11 +747,17 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
                 "is_system_app": s.is_system_app
             })
 
-    # Playlist structure
-    playlist_data = None
+    # 3. Playlist com Herança
+    effective_playlist = None
     if tv.playlist and tv.playlist.is_active:
+        effective_playlist = tv.playlist
+    elif grp and grp.playlist and grp.playlist.is_active:
+        effective_playlist = grp.playlist
+
+    playlist_data = None
+    if effective_playlist:
         items = []
-        for it in tv.playlist.items:
+        for it in effective_playlist.items:
             if it.media:
                 items.append({
                     "media_id": it.media.id,
@@ -693,38 +768,46 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
                     "order_index": it.order_index
                 })
         playlist_data = {
-            "id": tv.playlist.id,
-            "name": tv.playlist.name,
-            "loop_playback": tv.playlist.loop_playback,
+            "id": effective_playlist.id,
+            "name": effective_playlist.name,
+            "loop_playback": effective_playlist.loop_playback,
             "items": items
         }
 
-    # Layout structure
+    # 4. Layout com Herança
+    effective_layout = tv.layout or (grp.layout if grp else None)
+    if not effective_layout:
+        default_l_res = await db.execute(select(LayoutPreset).order_by(LayoutPreset.id.asc()))
+        effective_layout = default_l_res.scalars().first()
+
     layout_data = None
-    if tv.layout:
+    if effective_layout:
         layout_data = {
-            "id": tv.layout.id,
-            "name": tv.layout.name,
-            "code": tv.layout.code,
-            "config": tv.layout.config
+            "id": effective_layout.id,
+            "name": effective_layout.name,
+            "code": effective_layout.code,
+            "config": effective_layout.config
         }
 
-    is_hdmi_enabled = tv.hdmi_input_id not in ("NONE", "DISABLED", None, "") and not (tv.custom_settings or {}).get("hide_hdmi", False)
+    # 5. HDMI com Herança
+    effective_hdmi_id = tv.hdmi_input_id if tv.hdmi_input_id is not None else (grp.hdmi_input_id if grp else "HDMI 1")
+    effective_hdmi_label = tv.hdmi_label if tv.hdmi_label is not None else (grp.hdmi_label if grp else "TV SKY")
+    is_hdmi_enabled = effective_hdmi_id not in ("NONE", "DISABLED", None, "") and not merged_settings.get("hide_hdmi", False)
 
     return TVClientConfig(
         device_id=tv.device_id,
         name=tv.name,
-        room_group=tv.room_group,
+        room_group=grp.name if grp else tv.room_group,
         is_paired=tv.is_paired,
         layout=layout_data,
         hdmi={
             "enabled": is_hdmi_enabled,
-            "input_id": tv.hdmi_input_id if is_hdmi_enabled else "NONE",
-            "label": tv.hdmi_label or "TV SKY",
+            "input_id": effective_hdmi_id if is_hdmi_enabled else "NONE",
+            "label": effective_hdmi_label or "TV SKY",
             "action": "action.switch_hdmi"
         },
         shortcuts=shortcuts_data,
         playlist=playlist_data,
-        custom_settings=tv.custom_settings or {},
+        custom_settings=merged_settings,
         server_time=datetime.utcnow()
     )

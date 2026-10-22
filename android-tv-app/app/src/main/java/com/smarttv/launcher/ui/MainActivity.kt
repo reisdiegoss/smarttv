@@ -113,6 +113,7 @@ class MainActivity : AppCompatActivity() {
     private var isDockVisible = true
     private var isPollingPairStatus = false
     private var pairPollRunnable: Runnable? = null
+    private var currentLoadedMediaUrls: List<String> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -512,6 +513,11 @@ class MainActivity : AppCompatActivity() {
             openAndroidSystemSettings()
         }
 
+        dialogView.findViewById<Button>(R.id.btnActionUpdateApp).setOnClickListener {
+            dialog.dismiss()
+            downloadAndInstallApkUpdate()
+        }
+
         dialogView.findViewById<Button>(R.id.btnActionOpenSettings).setOnClickListener {
             dialog.dismiss()
             showPairingScreen()
@@ -531,6 +537,114 @@ class MainActivity : AppCompatActivity() {
         }
 
         dialog.show()
+    }
+
+    /**
+     * Baixa a última versão do APK diretamente do servidor HTTP e inicia o instalador do Android TV
+     */
+    private fun downloadAndInstallApkUpdate() {
+        exoPlayer?.pause()
+        val serverUrl = SmartTVApp.instance.getServerUrl().removeSuffix("/")
+        val downloadUrl = "$serverUrl/fasano-smarttv-v1.0.5.apk"
+
+        val progressDialog = android.app.ProgressDialog(this).apply {
+            setTitle("📥 Atualização Fasano SMARTTV")
+            setMessage("Conectando ao servidor...")
+            setProgressStyle(android.app.ProgressDialog.STYLE_HORIZONTAL)
+            isIndeterminate = false
+            max = 100
+            progress = 0
+            setCancelable(false)
+            show()
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            var connection: java.net.HttpURLConnection? = null
+            try {
+                var targetUrl = java.net.URL(downloadUrl)
+                connection = (targetUrl.openConnection() as java.net.HttpURLConnection).apply {
+                    connectTimeout = 10000
+                    readTimeout = 30000
+                    requestMethod = "GET"
+                    connect()
+                }
+
+                if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
+                    connection.disconnect()
+                    targetUrl = java.net.URL("$serverUrl/smarttv-launcher.apk")
+                    connection = (targetUrl.openConnection() as java.net.HttpURLConnection).apply {
+                        connectTimeout = 10000
+                        readTimeout = 30000
+                        requestMethod = "GET"
+                        connect()
+                    }
+                }
+
+                val fileLength = connection.contentLength
+                val outputFile = java.io.File(externalCacheDir ?: cacheDir, "update-fasano-smarttv.apk")
+                if (outputFile.exists()) outputFile.delete()
+
+                val input = java.io.BufferedInputStream(connection.inputStream)
+                val output = java.io.FileOutputStream(outputFile)
+
+                val data = ByteArray(8192)
+                var total: Long = 0
+                var count: Int
+
+                withContext(Dispatchers.Main) {
+                    progressDialog.setMessage("Baixando Fasano SMARTTV v1.0.5...")
+                }
+
+                while (input.read(data).also { count = it } != -1) {
+                    total += count
+                    output.write(data, 0, count)
+                    if (fileLength > 0) {
+                        val progressPct = ((total * 100) / fileLength).toInt()
+                        withContext(Dispatchers.Main) {
+                            progressDialog.progress = progressPct
+                        }
+                    }
+                }
+
+                output.flush()
+                output.close()
+                input.close()
+
+                withContext(Dispatchers.Main) {
+                    progressDialog.dismiss()
+                    installApk(outputFile)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao baixar atualização OTA", e)
+                withContext(Dispatchers.Main) {
+                    progressDialog.dismiss()
+                    Toast.makeText(this@MainActivity, "Falha no download: ${e.message}", Toast.LENGTH_LONG).show()
+                    if (currentConfig?.playlist?.items?.isNotEmpty() == true) {
+                        exoPlayer?.play()
+                    }
+                }
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
+    private fun installApk(file: java.io.File) {
+        try {
+            val contentUri = androidx.core.content.FileProvider.getUriForFile(
+                this,
+                "${applicationContext.packageName}.fileprovider",
+                file
+            )
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri, "application/vnd.android.package-archive")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            }
+            startActivity(installIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao iniciar instalação do APK", e)
+            Toast.makeText(this, "Erro ao abrir instalador: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     /**
@@ -722,7 +836,7 @@ class MainActivity : AppCompatActivity() {
                         deviceId = deviceId,
                         pairingCode = "",
                         ipAddress = null,
-                        appVersion = "1.0.4"
+                        appVersion = "1.0.5"
                     )
                 )
 
@@ -809,7 +923,7 @@ class MainActivity : AppCompatActivity() {
                         tvId = tv.id,
                         deviceId = deviceId,
                         ipAddress = null,
-                        appVersion = "1.0.4"
+                        appVersion = "1.0.5"
                     )
                 )
 
@@ -835,6 +949,8 @@ class MainActivity : AppCompatActivity() {
 
         pairPollRunnable = object : Runnable {
             override fun run() {
+                if (!isPollingPairStatus) return
+
                 val deviceId = SmartTVApp.instance.getTvDeviceId()
                 val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
 
@@ -844,23 +960,26 @@ class MainActivity : AppCompatActivity() {
                             PingRequest(
                                 deviceId = deviceId,
                                 ipAddress = null,
-                                appVersion = "1.0.4"
+                                appVersion = "1.0.5"
                             )
                         )
                         val isPaired = (response["is_paired"] as? Boolean) ?: false
                         if (isPaired) {
                             withContext(Dispatchers.Main) {
-                                SmartTVApp.instance.setPaired(true)
                                 stopPairPolling()
+                                SmartTVApp.instance.setPaired(true)
                                 showLauncherScreen()
                                 loadConfigAndSetup()
                             }
+                            return@launch
                         }
                     } catch (ignored: Exception) {}
-                }
 
-                if (isPollingPairStatus) {
-                    handler.postDelayed(this, 3000)
+                    withContext(Dispatchers.Main) {
+                        if (isPollingPairStatus) {
+                            pairPollRunnable?.let { handler.postDelayed(it, 3000) }
+                        }
+                    }
                 }
             }
         }
@@ -1114,16 +1233,27 @@ class MainActivity : AppCompatActivity() {
         if (playlist == null || playlist.items.isEmpty()) {
             exoPlayer?.stop()
             exoPlayer?.clearMediaItems()
+            currentLoadedMediaUrls = emptyList()
             playerView.visibility = View.GONE
             return
         }
 
         playerView.visibility = View.VISIBLE
-        exoPlayer?.clearMediaItems()
         val serverUrl = SmartTVApp.instance.getServerUrl().removeSuffix("/")
+        val newUrls = playlist.items.map { item ->
+            if (item.streamUrl.startsWith("http")) item.streamUrl else "$serverUrl${item.streamUrl}"
+        }
 
-        for (item in playlist.items) {
-            val fullUrl = if (item.streamUrl.startsWith("http")) item.streamUrl else "$serverUrl${item.streamUrl}"
+        // PREVENÇÃO DO LOOP DE 3 SEGUNDOS:
+        // Se a lista de vídeos for a mesma que já está em reprodução, NÃO limpa nem reseta o player!
+        if (newUrls == currentLoadedMediaUrls && exoPlayer?.playbackState != Player.STATE_IDLE) {
+            exoPlayer?.repeatMode = if (playlist.loopPlayback) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+            return
+        }
+
+        currentLoadedMediaUrls = newUrls
+        exoPlayer?.clearMediaItems()
+        for (fullUrl in newUrls) {
             val mediaItem = MediaItem.fromUri(fullUrl)
             exoPlayer?.addMediaItem(mediaItem)
         }
@@ -1360,7 +1490,7 @@ class MainActivity : AppCompatActivity() {
                             PingRequest(
                                 deviceId = deviceId,
                                 ipAddress = null,
-                                appVersion = "1.0.4"
+                                appVersion = "1.0.5"
                             )
                         )
                         val isServerPaired = (response["is_paired"] as? Boolean) ?: false
