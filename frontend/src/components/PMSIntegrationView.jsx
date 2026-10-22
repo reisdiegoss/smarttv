@@ -23,11 +23,7 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
   const [resyncing, setResyncing] = useState(false);
   const [resyncResult, setResyncResult] = useState(null);
 
-  // Estados para Carga Direta do Banco Central do Hotel
-  const [pullingHotelDb, setPullingHotelDb] = useState(false);
-  const [hotelDbResult, setHotelDbResult] = useState(null);
-
-  // Modo de Carga de UHs: 'FILE' (Importar do Opera - Recomendado), 'HOTEL_DB' (Puxar UHs já cadastradas), 'IFC8' (Sincronização Direta DR)
+  // Modo de Carga de UHs do Opera PMS: 'FILE' (Importar do Opera - Recomendado), 'IFC8' (Sincronização Direta DR)
   const [loadMode, setLoadMode] = useState('FILE');
   const [operaImportLoading, setOperaImportLoading] = useState(false);
   const [operaImportResult, setOperaImportResult] = useState(null);
@@ -43,37 +39,6 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
   const [guestName, setGuestName] = useState('');
   const [actionType, setActionType] = useState('CHECK_IN');
   const [welcomeTitle, setWelcomeTitle] = useState('');
-
-  const handlePullHotelDb = async () => {
-    setPullingHotelDb(true);
-    setHotelDbResult(null);
-    try {
-      const res = await fetch('/api/pms/pull-from-hotel-db', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(fetchHeaders ? fetchHeaders() : {})
-        },
-        body: JSON.stringify({
-          group_id: batchGroupId ? parseInt(batchGroupId) : null
-        })
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Falha ao puxar UHs do banco do hotel');
-      }
-
-      const data = await res.json();
-      setHotelDbResult(data);
-      if (onRefresh) onRefresh();
-      loadStatus();
-    } catch (err) {
-      alert(`Erro: ${err.message}`);
-    } finally {
-      setPullingHotelDb(false);
-    }
-  };
 
 
   const handleFileUpload = async (e) => {
@@ -606,19 +571,6 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
 
             <button
               type="button"
-              onClick={() => setLoadMode('HOTEL_DB')}
-              style={{
-                padding: '6px 14px', fontSize: '0.8rem', borderRadius: 8, cursor: 'pointer',
-                background: loadMode === 'HOTEL_DB' ? '#3b82f6' : 'transparent',
-                color: loadMode === 'HOTEL_DB' ? '#fff' : '#94a3b8',
-                border: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6
-              }}
-            >
-              <Building2 size={15} /> 2. Puxar do Sistema do Hotel (TIHFSA)
-            </button>
-
-            <button
-              type="button"
               onClick={() => setLoadMode('IFC8')}
               style={{
                 padding: '6px 14px', fontSize: '0.8rem', borderRadius: 8, cursor: 'pointer',
@@ -627,7 +579,7 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
                 border: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6
               }}
             >
-              <RotateCw size={15} /> 3. Resync Socket IFC8
+              <RotateCw size={15} /> 2. Resync Socket IFC8
             </button>
           </div>
         </div>
@@ -656,7 +608,7 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
                   Carregue o Relatório Oficial Exportado do Opera PMS
                 </div>
                 <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: '0 0 12px 0' }}>
-                  Basta exportar do Opera o relatório <strong>"Room Status"</strong>, <strong>"Room List"</strong> ou <strong>"Guest In-House"</strong> e carregar aqui. O sistema extrai todos os quartos, vincula aos grupos certos (ex: Standard, Vista Mar) e cadastra os hóspedes sem digitação.
+                  Exporte no Opera PMS o relatório <strong>"Room Status"</strong>, <strong>"Room List"</strong> ou <strong>"Guest In-House"</strong> e carregue aqui. O sistema extrai automaticamente todas as UHs oficiais, vincula aos grupos certos (ex: Standard, Vista Mar) e sincroniza os hóspedes sem digitação.
                 </p>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -735,81 +687,7 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
           </div>
         )}
 
-        {/* MODO 2: PUXAR DIRETO DO BANCO DE DADOS CENTRAL DO HOTEL (TIHFSA) */}
-        {loadMode === 'HOTEL_DB' && (
-          <div style={{
-            background: 'rgba(15, 23, 42, 0.5)',
-            border: '1px solid rgba(59, 130, 246, 0.35)',
-            borderRadius: 14,
-            padding: 20,
-            marginTop: 10
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h4 style={{ color: '#fff', margin: '0 0 6px 0', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Building2 size={18} color="#60a5fa" />
-                  Importar UHs do Banco Central do Fasano Salvador
-                </h4>
-                <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: '0 0 10px 0', maxWidth: 680 }}>
-                  Conecta instantaneamente à base de dados central de infraestrutura do Fasano (PostgreSQL em <code>192.168.168.26</code>) e importa todas as UHs oficiais já cadastradas, gerando os códigos de pareamento (ex: <code>UH-0101</code>) sem nenhum risco de digitação.
-                </p>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'block', marginBottom: 4 }}>
-                      Vincular ao Grupo
-                    </label>
-                    <select
-                      className="form-control"
-                      value={batchGroupId}
-                      onChange={e => setBatchGroupId(e.target.value)}
-                      style={{ background: 'rgba(15, 23, 42, 0.8)', borderColor: 'rgba(59, 130, 246, 0.4)', color: '#fff', fontSize: '0.8rem', padding: '6px 12px' }}
-                    >
-                      <option value="">TV Quartos (Padrão)</option>
-                      {groups.map(g => (
-                        <option key={g.id} value={g.id}>{g.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handlePullHotelDb}
-                  disabled={pullingHotelDb}
-                  style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 8, background: '#10b981', fontWeight: 600, fontSize: '0.9rem' }}
-                >
-                  <Download size={18} />
-                  {pullingHotelDb ? 'Puxando UHs...' : 'Puxar Todas as UHs Agora'}
-                </button>
-              </div>
-            </div>
-
-            {hotelDbResult && (
-              <div style={{
-                marginTop: 16,
-                padding: '14px 18px',
-                borderRadius: 10,
-                background: 'rgba(16, 185, 129, 0.15)',
-                border: '1px solid #10b981',
-                fontSize: '0.86rem'
-              }}>
-                <div style={{ fontWeight: 700, color: '#34d399', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <CheckCircle2 size={18} />
-                  {hotelDbResult.message}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
-                  Total encontradas: <strong>{hotelDbResult.total_found}</strong> • Criadas nesta importação: <strong>{hotelDbResult.created_count}</strong> • Já existentes: <strong>{hotelDbResult.already_exists_count}</strong>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* MODO 3: SINCRONIZAÇÃO SOCKET DIRETA COM O OPERA IFC8 */}
+        {/* MODO 2: SINCRONIZAÇÃO SOCKET DIRETA COM O OPERA IFC8 */}
         {loadMode === 'IFC8' && (
           <div style={{
             background: 'rgba(15, 23, 42, 0.5)',
@@ -842,6 +720,7 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
             </div>
           </div>
         )}
+
 
 
         {/* Modal para Colar Texto do Opera */}
