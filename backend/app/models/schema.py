@@ -124,6 +124,7 @@ class SmartTV(Base):
     group_id = Column(Integer, ForeignKey("tv_groups.id", ondelete="SET NULL"), nullable=True) # Perfil de Grupo Herdado
     uh_number = Column(String(50), nullable=True, index=True) # Número da UH / Quarto (ex: "101", "204", "TI")
     guest_name = Column(String(150), nullable=True) # Nome do hóspede atual (via PMS IFC8 ou manual)
+    pms_enabled = Column(Boolean, default=True) # Se True: UH/Hóspede Opera. Se False: Reunião/Setor/Lobby (mensagens manuais)
     pin_code = Column(String(20), nullable=True) # Senha de saída para launcher original (override)
     ip_address = Column(String(50), nullable=True)
     mac_address = Column(String(50), nullable=True)

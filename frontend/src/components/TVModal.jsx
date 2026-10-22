@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Tv, Save, CheckSquare, Square, Layers, Film, Wifi, QrCode, Upload, Trash2, Smartphone, Key, Eye, Sliders, User, Building, Lock, FolderTree } from 'lucide-react';
 
 export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlists, shortcuts, groups = [] }) {
+  const [pmsEnabled, setPmsEnabled] = useState(true);
   const [name, setName] = useState('');
   const [roomGroup, setRoomGroup] = useState('Geral');
   const [groupId, setGroupId] = useState('');
@@ -42,6 +43,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
       setPlaylistId(tv.playlist_id || (playlists[0]?.id || ''));
       setDeviceId(tv.device_id || '');
       setPairingCode(tv.pairing_code || '');
+      setPmsEnabled(tv.pms_enabled !== false);
       
       const isHdmiOn = tv.hdmi_input_id !== 'NONE' && tv.hdmi_input_id !== 'DISABLED' && tv.hdmi_input_id !== null && tv.custom_settings?.hide_hdmi !== true;
       setEnableHdmi(isHdmiOn);
@@ -80,6 +82,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
       setPlaylistId('');
       setDeviceId('');
       setPairingCode('');
+      setPmsEnabled(true);
       setEnableHdmi(true);
       setHdmiInputId('HDMI 1');
       setHdmiLabel('TV SKY');
@@ -155,8 +158,9 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
       name,
       room_group: roomGroup,
       group_id: groupId ? parseInt(groupId) : null,
-      uh_number: cleanUh || undefined,
-      guest_name: cleanGuest || undefined,
+      uh_number: pmsEnabled ? (cleanUh || undefined) : undefined,
+      guest_name: pmsEnabled ? (cleanGuest || undefined) : undefined,
+      pms_enabled: pmsEnabled,
       pin_code: cleanPin,
       layout_id: layoutId ? parseInt(layoutId) : null,
       playlist_id: playlistId ? parseInt(playlistId) : null,
@@ -167,8 +171,8 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
       selected_shortcuts: selectedShortcuts,
       custom_settings: {
         ...customSettings,
-        uh_number: cleanUh,
-        guest_name: cleanGuest,
+        uh_number: pmsEnabled ? cleanUh : '',
+        guest_name: pmsEnabled ? cleanGuest : '',
         pin_code: cleanPin,
         admin_exit_pin: cleanPin,
         hide_hdmi: !enableHdmi
@@ -205,6 +209,100 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Seletor de Tipo de TV: Quarto/UH (PMS) vs Institucional/Reunião (Manual) */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: 14,
+              padding: 6,
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 8
+            }}>
+              <button
+                type="button"
+                onClick={() => setPmsEnabled(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  border: pmsEnabled ? '1px solid #3b82f6' : '1px solid transparent',
+                  background: pmsEnabled ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                  color: pmsEnabled ? '#60a5fa' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.84rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Building size={16} />
+                <span>🏨 TV de Quarto / UH (Opera PMS)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPmsEnabled(false)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  border: !pmsEnabled ? '1px solid #a855f7' : '1px solid transparent',
+                  background: !pmsEnabled ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
+                  color: !pmsEnabled ? '#c084fc' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.84rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Tv size={16} />
+                <span>🏢 TV Institucional / Reunião / Setor</span>
+              </button>
+            </div>
+
+            {/* Banner Explicativo do Modo Selecionado */}
+            {!pmsEnabled ? (
+              <div style={{
+                background: 'rgba(168, 85, 247, 0.08)',
+                border: '1px solid rgba(168, 85, 247, 0.3)',
+                borderRadius: 10,
+                padding: '10px 14px',
+                fontSize: '0.78rem',
+                color: '#d8b4fe',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}>
+                <Tv size={16} color="#c084fc" />
+                <span>
+                  <strong>Modo TV Institucional / Setor:</strong> Não utiliza integração com o Opera. As mensagens de tela configuradas abaixo são <strong>100% fixas</strong> e não serão alteradas por eventos de hóspedes.
+                </span>
+              </div>
+            ) : (
+              <div style={{
+                background: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                borderRadius: 10,
+                padding: '10px 14px',
+                fontSize: '0.78rem',
+                color: '#93c5fd',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}>
+                <Building size={16} color="#60a5fa" />
+                <span>
+                  <strong>Modo TV de Quarto / UH:</strong> Integrada ao IFC8/Opera PMS. O nome do hóspede e mensagens de boas-vindas são atualizados em tempo real no Check-in e Check-out.
+                </span>
+              </div>
+            )}
+
             {/* Seção 1: Identificação Básica & Grupo Herdado */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div className="form-group" style={{ margin: 0 }}>
@@ -212,7 +310,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="Ex: Quarto 102 - Suíte Luxo"
+                  placeholder={pmsEnabled ? "Ex: Quarto 102 - Suíte Luxo" : "Ex: TV Reunião Diretoria / TV Setor RH"}
                   value={name}
                   onChange={e => setName(e.target.value)}
                   required
@@ -240,38 +338,70 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                 )}
               </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f59e0b' }}>
-                  <Building size={14} /> Unidade Habitacional (UH / Quarto)
-                </label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Ex: 101, 204, TI"
-                  value={customSettings.uh_number || ''}
-                  onChange={e => setCustomSettings({ ...customSettings, uh_number: e.target.value })}
-                />
-              </div>
+              {pmsEnabled ? (
+                <>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f59e0b' }}>
+                      <Building size={14} /> Unidade Habitacional (UH / Quarto) *
+                    </label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Ex: 101, 204"
+                      value={customSettings.uh_number || ''}
+                      onChange={e => setCustomSettings({ ...customSettings, uh_number: e.target.value })}
+                    />
+                  </div>
 
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#34d399' }}>
-                  <User size={14} /> Nome do Hóspede Atual
-                </label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Ex: Diego Reis (ou via PMS IFC8)"
-                  value={customSettings.guest_name || ''}
-                  onChange={e => {
-                    const gName = e.target.value;
-                    setCustomSettings({
-                      ...customSettings,
-                      guest_name: gName,
-                      welcome_title: gName ? `Sr(a). ${gName}, Bem-vindo(a) ao Fasano` : (customSettings.welcome_title || 'Seja Bem-vindo(a)!')
-                    });
-                  }}
-                />
-              </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#34d399' }}>
+                      <User size={14} /> Nome do Hóspede Atual
+                    </label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Ex: Diego Reis (ou via PMS Opera)"
+                      value={customSettings.guest_name || ''}
+                      onChange={e => {
+                        const gName = e.target.value;
+                        setCustomSettings({
+                          ...customSettings,
+                          guest_name: gName,
+                          welcome_title: gName ? `Sr(a). ${gName}, Bem-vindo(a) ao Fasano` : (customSettings.welcome_title || 'Seja Bem-vindo(a)!')
+                        });
+                      }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#c084fc' }}>
+                      Título Fixo da Tela (TV Institucional)
+                    </label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Ex: Reunião Diretoria Executiva"
+                      value={customSettings.welcome_title || ''}
+                      onChange={e => setCustomSettings({ ...customSettings, welcome_title: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#c084fc' }}>
+                      Subtítulo Fixo / Mensagem do Setor
+                    </label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Ex: Apresentação de Resultados 2026"
+                      value={customSettings.welcome_subtitle || ''}
+                      onChange={e => setCustomSettings({ ...customSettings, welcome_subtitle: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Seção 2: Vínculo com Dispositivo Físico / Código PIN */}

@@ -111,6 +111,29 @@ class FIASService:
             except Exception as e:
                 logger.error(f"Erro ao enviar pacote FIAS: {e}")
 
+    async def request_database_resync(self, room_number: Optional[str] = None) -> bool:
+        """Envia solicitação de Database Resync (DR) ao IFC8/Opera para obter todas as UHs e hóspedes ativos"""
+        if not self.is_connected or not self._writer:
+            logger.warning("Não é possível solicitar Database Resync: socket FIAS não está conectado.")
+            return False
+        
+        now = datetime.now()
+        da = now.strftime("%y%m%d")
+        ti = now.strftime("%H%M%S")
+        if room_number:
+            packet = f"DR|DA{da}|TI{ti}|RN{room_number.strip()}|"
+        else:
+            packet = f"DR|DA{da}|TI{ti}|"
+
+        await self._send_packet(packet)
+        self.last_event = {
+            "type": "RESYNC_REQUESTED",
+            "uh": room_number or "ALL",
+            "time": datetime.utcnow().isoformat()
+        }
+        logger.info(f"FIAS: Pacote Database Resync enviado ao IFC8: {packet}")
+        return True
+
     async def _handle_fias_record(self, record: str):
         now = datetime.now()
         da = now.strftime("%y%m%d")
@@ -141,16 +164,16 @@ class FIASService:
             await self._send_packet(f"LA|DA{da}|TI{ti}|")
 
         elif cmd == "GI":
-            # Guest Check-In
+            # Guest Check-In ou retorno de Resync (DR) com hóspede ativo
             rn = fields.get("RN") # Room Number / UH
             gs = fields.get("GS", "").strip() # Sobrenome
             gn = fields.get("GN", "").strip() # Nome
             guest_name = f"{gn} {gs}".strip() or gs
-            logger.info(f"FIAS CHECK-IN: Quarto {rn} -> Hóspede: {guest_name}")
+            logger.info(f"FIAS CHECK-IN / RESYNC: Quarto {rn} -> Hóspede: {guest_name}")
             self.last_event = {"type": "CHECK_IN", "uh": rn, "guest_name": guest_name, "time": datetime.utcnow().isoformat()}
             self.synced_events_count += 1
             if rn:
-                await self._sync_tv_guest(rn, guest_name, is_checkin=True)
+                await self._sync_tv_guest(rn, guest_name, is_checkin=True, fields=fields)
 
         elif cmd == "GO":
             # Guest Check-Out
@@ -159,7 +182,7 @@ class FIASService:
             self.last_event = {"type": "CHECK_OUT", "uh": rn, "time": datetime.utcnow().isoformat()}
             self.synced_events_count += 1
             if rn:
-                await self._sync_tv_guest(rn, None, is_checkin=False)
+                await self._sync_tv_guest(rn, None, is_checkin=False, fields=fields)
 
         elif cmd == "GC":
             # Guest Change
@@ -171,13 +194,30 @@ class FIASService:
             self.last_event = {"type": "GUEST_CHANGE", "uh": rn, "guest_name": guest_name, "time": datetime.utcnow().isoformat()}
             self.synced_events_count += 1
             if rn:
-                await self._sync_tv_guest(rn, guest_name, is_checkin=True)
+                await self._sync_tv_guest(rn, guest_name, is_checkin=True, fields=fields)
 
-    async def _sync_tv_guest(self, uh: str, guest_name: Optional[str], is_checkin: bool):
+        elif cmd == "RE":
+            # Resync End (Carga completa concluída pelo Opera)
+            logger.info("FIAS RESYNC END (RE): Carga inicial completa do Opera finalizada com sucesso.")
+            self.last_event = {"type": "RESYNC_END", "time": datetime.utcnow().isoformat()}
+
+        elif cmd in ("WR", "RS"):
+            # Room Status (UH limpa, suja, etc.)
+            rn = fields.get("RN")
+            rs = fields.get("RS", "")
+            logger.info(f"FIAS ROOM STATUS: Quarto {rn} -> Status: {rs}")
+            self.last_event = {"type": "ROOM_STATUS", "uh": rn, "status": rs, "time": datetime.utcnow().isoformat()}
+
+    async def _sync_tv_guest(self, uh: str, guest_name: Optional[str], is_checkin: bool, fields: Optional[Dict[str, str]] = None):
         clean_uh = str(uh).strip()
+        if not clean_uh:
+            return
+
+        from app.models.schema import TVGroup
+
         async with AsyncSessionLocal() as session:
             try:
-                # Localizar TV pela UH ou Nome
+                # 1. Localizar TV existente pela UH ou Nome
                 result = await session.execute(select(SmartTV))
                 tvs = result.scalars().all()
                 target_tv = None
@@ -194,6 +234,11 @@ class FIASService:
                         break
 
                 if target_tv:
+                    # Se TV tiver pms_enabled=False (ex: Reunião, Diretoria, Setor), o Opera PMS NUNCA sobrescreve suas mensagens!
+                    if not getattr(target_tv, 'pms_enabled', True):
+                        logger.info(f"TV '{target_tv.name}' (UH {clean_uh}) possui pms_enabled=False (Institucional / Manual). PMS Opera ignorado.")
+                        return
+
                     target_tv.uh_number = clean_uh
                     target_tv.guest_name = guest_name if is_checkin else None
 
@@ -216,6 +261,52 @@ class FIASService:
 
                     await session.commit()
                     logger.info(f"TV ID {target_tv.id} ({target_tv.name}) sincronizada com sucesso via FIAS!")
+                else:
+                    # Se a TV NÃO existe no banco, criamos automaticamente para que a equipe técnica possa parear o APK!
+                    group_res = await session.execute(
+                        select(TVGroup).where(TVGroup.name.ilike("%Quartos%")).order_by(TVGroup.id.asc())
+                    )
+                    default_group = group_res.scalars().first()
+                    if not default_group:
+                        first_grp = await session.execute(select(TVGroup).order_by(TVGroup.id.asc()))
+                        default_group = first_grp.scalars().first()
+
+                    clean_code = f"UH-{clean_uh.zfill(4)}"
+                    new_settings = {
+                        "uh_number": clean_uh,
+                        "welcome_title": f"Sr(a). {guest_name}, Bem-vindo(a) ao Fasano" if (is_checkin and guest_name) else "Seja Bem-vindo(a) ao Fasano",
+                        "welcome_subtitle": "Aproveite a sua estadia com o melhor do entretenimento.",
+                        "pin_code": "0000"
+                    }
+                    if is_checkin and guest_name:
+                        new_settings["guest_name"] = guest_name
+
+                    new_tv = SmartTV(
+                        device_id=f"UH-{clean_uh}",
+                        name=f"Quarto {clean_uh}",
+                        room_group=default_group.name if default_group else "TV Quartos",
+                        group_id=default_group.id if default_group else None,
+                        uh_number=clean_uh,
+                        guest_name=guest_name if is_checkin else None,
+                        pms_enabled=True,
+                        pin_code="0000",
+                        pairing_code=clean_code,
+                        is_paired=False,
+                        is_online=False,
+                        custom_settings=new_settings
+                    )
+                    session.add(new_tv)
+                    await session.flush()
+
+                    log = DeviceLog(
+                        tv_id=new_tv.id,
+                        event_type="PMS_AUTO_CREATE_UH",
+                        message=f"TV criada automaticamente a partir de evento do Opera: UH {clean_uh} ('{guest_name or 'Quarto Vago'}')"
+                    )
+                    session.add(log)
+                    await session.commit()
+                    logger.info(f"Nova TV para UH {clean_uh} criada com sucesso pelo FIAS! ID: {new_tv.id}")
+
             except Exception as e:
                 logger.error(f"Erro ao salvar hóspede FIAS na TV: {e}")
 

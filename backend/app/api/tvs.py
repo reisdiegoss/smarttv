@@ -63,6 +63,7 @@ async def create_tv(payload: SmartTVCreate, request: Request, db: AsyncSession =
         group_id=payload.group_id,
         uh_number=payload.uh_number,
         guest_name=payload.guest_name,
+        pms_enabled=payload.pms_enabled,
         pin_code=payload.pin_code,
         ip_address=payload.ip_address,
         mac_address=payload.mac_address,
@@ -191,6 +192,8 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
             current.pop("guest_name", None)
             current["welcome_title"] = "Seja Bem-vindo(a) ao Fasano"
         tv.custom_settings = current
+    if "pms_enabled" in payload.model_fields_set and payload.pms_enabled is not None:
+        tv.pms_enabled = payload.pms_enabled
     if payload.pin_code is not None:
         tv.pin_code = payload.pin_code.strip()
         current = dict(tv.custom_settings or {})
@@ -700,11 +703,20 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
     merged_settings.update(dict(tv.custom_settings or {}))
 
     # Vinculação de UH e Hóspede (Integração PMS IFC8)
-    if tv.uh_number:
-        merged_settings["uh_number"] = tv.uh_number
-    if tv.guest_name:
-        merged_settings["guest_name"] = tv.guest_name
-        merged_settings["welcome_title"] = f"Sr(a). {tv.guest_name}, Bem-vindo(a) ao Fasano"
+    if getattr(tv, 'pms_enabled', True):
+        if tv.uh_number:
+            merged_settings["uh_number"] = tv.uh_number
+        if tv.guest_name:
+            merged_settings["guest_name"] = tv.guest_name
+            merged_settings["welcome_title"] = f"Sr(a). {tv.guest_name}, Bem-vindo(a) ao Fasano"
+    else:
+        # TV Institucional / Reunião / Setor (Sem PMS):
+        # As mensagens são 100% fixas e manuais definidas na TV
+        merged_settings.pop("guest_name", None)
+        if (tv.custom_settings or {}).get("welcome_title"):
+            merged_settings["welcome_title"] = tv.custom_settings["welcome_title"]
+        if (tv.custom_settings or {}).get("welcome_subtitle"):
+            merged_settings["welcome_subtitle"] = tv.custom_settings["welcome_subtitle"]
 
     # Senha de saída para launcher original (PIN do painel)
     effective_pin = tv.pin_code or merged_settings.get("pin_code") or (grp.custom_settings.get("pin_code") if grp and grp.custom_settings else "0000") or "0000"

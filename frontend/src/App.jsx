@@ -620,32 +620,79 @@ export default function App() {
                   </div>
 
                   <div className="tv-card-body">
-                    {/* UH & Hóspede (Hospitalidade / PMS) */}
-                    <div style={{
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
-                      borderRadius: 8,
-                      padding: '6px 10px',
-                      marginBottom: 8,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '0.82rem'
-                    }}>
-                      <span style={{ color: '#f59e0b', fontWeight: 600 }}>
-                        UH {tv.custom_settings?.uh_number || '---'}
-                      </span>
-                      <span style={{ 
-                        color: tv.custom_settings?.guest_name ? '#34d399' : 'var(--text-muted)', 
-                        fontWeight: 500, 
-                        overflow: 'hidden', 
-                        textOverflow: 'ellipsis', 
-                        whiteSpace: 'nowrap', 
-                        maxWidth: 160 
-                      }} title={tv.custom_settings?.guest_name || 'Quarto Vago'}>
-                        👤 {tv.custom_settings?.guest_name || 'Vago'}
-                      </span>
-                    </div>
+                    {/* UH & Hóspede (Hospitalidade / PMS) OU Mensagem Institucional */}
+                    {tv.pms_enabled !== false ? (
+                      <div style={{
+                        background: 'rgba(59, 130, 246, 0.08)',
+                        border: '1px solid rgba(59, 130, 246, 0.2)',
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                        marginBottom: 8,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '0.82rem'
+                      }}>
+                        <span style={{ color: '#60a5fa', fontWeight: 600 }}>
+                          🏨 UH {tv.uh_number || tv.custom_settings?.uh_number || '---'}
+                        </span>
+                        <span style={{ 
+                          color: (tv.guest_name || tv.custom_settings?.guest_name) ? '#34d399' : 'var(--text-muted)', 
+                          fontWeight: 500, 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          whiteSpace: 'nowrap', 
+                          maxWidth: 160 
+                        }} title={tv.guest_name || tv.custom_settings?.guest_name || 'Quarto Vago'}>
+                          👤 {tv.guest_name || tv.custom_settings?.guest_name || 'Vago'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{
+                        background: 'rgba(168, 85, 247, 0.08)',
+                        border: '1px solid rgba(168, 85, 247, 0.25)',
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                        marginBottom: 8,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '0.82rem'
+                      }}>
+                        <span style={{ color: '#c084fc', fontWeight: 600 }}>
+                          🏢 Institucional
+                        </span>
+                        <span style={{ 
+                          color: '#d8b4fe', 
+                          fontStyle: 'italic',
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          whiteSpace: 'nowrap', 
+                          maxWidth: 160 
+                        }} title={tv.custom_settings?.welcome_title || 'Mensagem Fixa'}>
+                          💬 {tv.custom_settings?.welcome_title || 'Mensagem Fixa'}
+                        </span>
+                      </div>
+                    )}
+
+                    {!tv.is_paired && (
+                      <div style={{
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        borderRadius: 6,
+                        padding: '3px 8px',
+                        marginBottom: 8,
+                        fontSize: '0.74rem',
+                        color: '#f59e0b',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontWeight: 600
+                      }}>
+                        <span>Aguardando APK</span>
+                        <code>PIN: {tv.pairing_code || tv.device_id}</code>
+                      </div>
+                    )}
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '6px 0' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1104,6 +1151,7 @@ export default function App() {
         {activeTab === 'pms' && (
           <PMSIntegrationView 
             tvs={tvs}
+            groups={groups}
             onRefresh={loadData}
           />
         )}

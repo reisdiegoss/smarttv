@@ -299,7 +299,8 @@ async def lifespan(app: FastAPI):
             ("group_id", "INTEGER REFERENCES tv_groups(id)"),
             ("uh_number", "VARCHAR(50)"),
             ("guest_name", "VARCHAR(150)"),
-            ("pin_code", "VARCHAR(20)")
+            ("pin_code", "VARCHAR(20)"),
+            ("pms_enabled", "BOOLEAN DEFAULT TRUE")
         ]:
             try:
                 await conn.execute(text(f"ALTER TABLE smart_tvs ADD COLUMN {col} {col_type};"))

@@ -152,6 +152,7 @@ class SmartTVCreate(BaseModel):
     group_id: Optional[int] = None
     uh_number: Optional[str] = None
     guest_name: Optional[str] = None
+    pms_enabled: bool = True
     pin_code: Optional[str] = None
     ip_address: Optional[str] = None
     mac_address: Optional[str] = None
@@ -168,6 +169,7 @@ class SmartTVUpdate(BaseModel):
     group_id: Optional[int] = None
     uh_number: Optional[str] = None
     guest_name: Optional[str] = None
+    pms_enabled: Optional[bool] = None
     pin_code: Optional[str] = None
     layout_id: Optional[int] = None
     playlist_id: Optional[int] = None
@@ -198,6 +200,7 @@ class SmartTVClaimRequest(BaseModel):
     group_id: Optional[int] = None
     uh_number: Optional[str] = None
     guest_name: Optional[str] = None
+    pms_enabled: bool = True
     layout_id: Optional[int] = None
     playlist_id: Optional[int] = None
     hdmi_input_id: Optional[str] = "HDMI 1"
@@ -233,6 +236,7 @@ class SmartTVOut(BaseModel):
     group_name: Optional[str] = None
     uh_number: Optional[str] = None
     guest_name: Optional[str] = None
+    pms_enabled: bool = True
     pin_code: Optional[str] = None
     ip_address: Optional[str] = None
     mac_address: Optional[str] = None
@@ -256,6 +260,25 @@ class SmartTVOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class BatchUHCreateRequest(BaseModel):
+    uh_ranges: Optional[str] = None # Ex: "101-125, 201-225, 301-315"
+    uh_list: Optional[List[str]] = None # Ex: ["101", "102", "103"]
+    group_id: Optional[int] = None # ID do grupo (ex: TV Quartos)
+    prefix: str = "Quarto" # "Quarto", "Suíte", "UH"
+    enable_pms: bool = True
+    default_pin: Optional[str] = "0000"
+
+class BatchUHCreateResponse(BaseModel):
+    total_requested: int
+    created_count: int
+    already_exists_count: int
+    created_rooms: List[str]
+    existing_rooms: List[str]
+    message: str
+
+class PMSResyncRequest(BaseModel):
+    room_number: Optional[str] = None # Opcional: UH específica ou vazio para todas as UHs
 
 # Client TV Config Response (consumed by Android APK)
 class TVClientConfig(BaseModel):
