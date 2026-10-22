@@ -114,3 +114,17 @@ async def update_layout(layout_id: int, payload: LayoutPresetBase, db: AsyncSess
     await db.commit()
     await db.refresh(layout)
     return layout
+
+@router.delete("/{layout_id}", status_code=204)
+async def delete_layout(layout_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(LayoutPreset).where(LayoutPreset.id == layout_id))
+    layout = result.scalar_one_or_none()
+    if not layout:
+        raise HTTPException(status_code=404, detail="Layout não encontrado")
+    if layout.is_default:
+        raise HTTPException(status_code=400, detail="Não é permitido excluir o layout padrão do sistema")
+
+    await db.delete(layout)
+    await db.commit()
+    return None
+

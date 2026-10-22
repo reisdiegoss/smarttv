@@ -27,3 +27,4 @@ class Settings(BaseSettings):
 
 settings = Settings()
 os.makedirs(os.path.join(settings.UPLOAD_DIR, "videos"), exist_ok=True)
+os.makedirs(os.path.join(settings.UPLOAD_DIR, "images"), exist_ok=True)

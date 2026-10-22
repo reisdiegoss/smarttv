@@ -12,7 +12,7 @@ from app.services.audit import record_audit_log
 from app.models.dto import (
     SmartTVOut, SmartTVCreate, SmartTVUpdate,
     SmartTVPairRequest, SmartTVClaimRequest, SmartTVPingRequest,
-    SmartTVBindRequest, SmartTVQuickUpdateRequest, TVClientConfig
+    SmartTVBindRequest, SmartTVQuickUpdateRequest, SmartTVAssignDeviceRequest, TVClientConfig
 )
 
 router = APIRouter(prefix="/tvs", tags=["Smart TVs"])
@@ -90,7 +90,10 @@ async def create_tv(payload: SmartTVCreate, request: Request, db: AsyncSession =
 
     result = await db.execute(
         select(SmartTV)
-        .options(selectinload(SmartTV.layout), selectinload(SmartTV.playlist))
+        .options(
+            selectinload(SmartTV.layout),
+            selectinload(SmartTV.playlist).selectinload(Playlist.items).selectinload(PlaylistItem.media)
+        )
         .where(SmartTV.id == tv.id)
     )
     return result.scalar_one()
@@ -158,6 +161,30 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
         current = dict(tv.custom_settings or {})
         current.update(payload.custom_settings)
         tv.custom_settings = current
+    if payload.device_id is not None and payload.device_id != tv.device_id:
+        existing_dev = await db.execute(select(SmartTV).where(SmartTV.device_id == payload.device_id, SmartTV.id != tv.id))
+        for old_tv in existing_dev.scalars().all():
+            if old_tv.ip_address:
+                tv.ip_address = old_tv.ip_address
+            if old_tv.app_version:
+                tv.app_version = old_tv.app_version
+            await db.delete(old_tv)
+        tv.device_id = payload.device_id
+        tv.is_paired = True
+    if payload.pairing_code is not None:
+        clean_code = payload.pairing_code.strip().upper()
+        if clean_code and clean_code != tv.pairing_code:
+            existing_code = await db.execute(select(SmartTV).where(SmartTV.pairing_code == clean_code, SmartTV.id != tv.id))
+            for old_tv in existing_code.scalars().all():
+                if old_tv.device_id and not tv.device_id:
+                    tv.device_id = old_tv.device_id
+                if old_tv.ip_address:
+                    tv.ip_address = old_tv.ip_address
+                await db.delete(old_tv)
+            tv.pairing_code = clean_code
+            tv.is_paired = True
+    if payload.is_paired is not None:
+        tv.is_paired = payload.is_paired
 
     tv.updated_at = datetime.utcnow()
     await db.commit()
@@ -171,7 +198,10 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
         "hdmi_input_id": tv.hdmi_input_id,
         "hdmi_label": tv.hdmi_label,
         "selected_shortcuts": list(tv.selected_shortcuts or []),
-        "custom_settings": dict(tv.custom_settings or {})
+        "custom_settings": dict(tv.custom_settings or {}),
+        "device_id": tv.device_id,
+        "pairing_code": tv.pairing_code,
+        "is_paired": tv.is_paired
     }
 
     # Grava auditoria detalhada com IP, Data, Hora, Antes e Depois
@@ -188,7 +218,10 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
 
     result = await db.execute(
         select(SmartTV)
-        .options(selectinload(SmartTV.layout), selectinload(SmartTV.playlist))
+        .options(
+            selectinload(SmartTV.layout),
+            selectinload(SmartTV.playlist).selectinload(Playlist.items).selectinload(PlaylistItem.media)
+        )
         .where(SmartTV.id == tv.id)
     )
     return result.scalar_one()
@@ -357,6 +390,66 @@ async def bind_device(payload: SmartTVBindRequest, request: Request, db: AsyncSe
     await db.commit()
     await db.refresh(tv)
     return {"status": "ok", "message": f"TV vinculada a {tv.name}", "device_id": tv.device_id, "tv_id": tv.id}
+
+# Assign Device Endpoint (Called by Dashboard to associate a detected PIN/DeviceID to an existing TV profile)
+@router.post("/assign-device")
+async def assign_device(payload: SmartTVAssignDeviceRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(SmartTV).where(SmartTV.id == payload.target_tv_id))
+    target_tv = result.scalar_one_or_none()
+    if not target_tv:
+        raise HTTPException(status_code=404, detail="TV de destino não encontrada")
+
+    source_tv = None
+    if payload.pairing_code:
+        code = payload.pairing_code.strip().upper()
+        res_code = await db.execute(select(SmartTV).where(SmartTV.pairing_code == code, SmartTV.id != target_tv.id))
+        source_tv = res_code.scalar_one_or_none()
+    elif payload.device_id:
+        res_dev = await db.execute(select(SmartTV).where(SmartTV.device_id == payload.device_id.strip(), SmartTV.id != target_tv.id))
+        source_tv = res_dev.scalar_one_or_none()
+
+    if source_tv:
+        target_tv.device_id = source_tv.device_id
+        target_tv.pairing_code = source_tv.pairing_code or target_tv.pairing_code
+        target_tv.ip_address = source_tv.ip_address or target_tv.ip_address
+        target_tv.mac_address = source_tv.mac_address or target_tv.mac_address
+        target_tv.app_version = source_tv.app_version or target_tv.app_version
+        target_tv.is_online = source_tv.is_online
+        target_tv.last_ping = source_tv.last_ping
+        target_tv.is_paired = True
+        target_tv.updated_at = datetime.utcnow()
+        await db.delete(source_tv)
+    else:
+        if payload.device_id:
+            target_tv.device_id = payload.device_id.strip()
+        if payload.pairing_code:
+            target_tv.pairing_code = payload.pairing_code.strip().upper()
+        target_tv.is_paired = True
+        target_tv.updated_at = datetime.utcnow()
+
+    # Log device pair
+    log = DeviceLog(tv_id=target_tv.id, event_type="ASSIGN", message=f"Dispositivo {target_tv.device_id} atribuído ao perfil '{target_tv.name}'")
+    db.add(log)
+
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="TV_ASSIGN",
+        entity="SmartTV",
+        entity_id=str(target_tv.id),
+        entity_name=target_tv.name,
+        description=f"TV '{target_tv.name}' atribuída com sucesso ao dispositivo {target_tv.device_id}"
+    )
+
+    await db.commit()
+    await db.refresh(target_tv)
+    return {
+        "status": "ok",
+        "message": f"TV '{target_tv.name}' vinculada com sucesso ao dispositivo {target_tv.device_id}!",
+        "tv_id": target_tv.id,
+        "device_id": target_tv.device_id,
+        "name": target_tv.name
+    }
 
 # Heartbeat Ping from APK (returns updated_at so TV reloads in real-time if changed in dashboard)
 @router.post("/ping")

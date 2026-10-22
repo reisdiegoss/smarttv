@@ -118,6 +118,14 @@ class SmartTVUpdate(BaseModel):
     hdmi_label: Optional[str] = None
     selected_shortcuts: Optional[List[int]] = None
     custom_settings: Optional[Dict[str, Any]] = None
+    device_id: Optional[str] = None
+    pairing_code: Optional[str] = None
+    is_paired: Optional[bool] = None
+
+class SmartTVAssignDeviceRequest(BaseModel):
+    target_tv_id: int
+    pairing_code: Optional[str] = None
+    device_id: Optional[str] = None
 
 class SmartTVPairRequest(BaseModel):
     device_id: str

@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Tv, MonitorPlay, Film, Layers, Radio, Plus, RefreshCw, 
   Settings, CheckCircle2, AlertCircle, Wifi, Play, Edit, 
   Trash2, QrCode, HardDrive, Eye, ExternalLink, Cpu,
-  Shield, Download, LogOut, User as UserIcon
+  Shield, Download, LogOut, User as UserIcon, Send
 } from 'lucide-react';
 
 import TVSimulator from './components/TVSimulator';
 import TVModal from './components/TVModal';
 import PairModal from './components/PairModal';
 import PlaylistModal from './components/PlaylistModal';
+import LayoutModal from './components/LayoutModal';
 import BrandAppIcon from './components/BrandAppIcon';
 import LoginView from './components/LoginView';
 import AuditTrailView from './components/AuditTrailView';
@@ -47,6 +48,13 @@ export default function App() {
   const [isPairModalOpen, setIsPairModalOpen] = useState(false);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
   const [editingPlaylist, setEditingPlaylist] = useState(null);
+  const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
+  const [editingLayout, setEditingLayout] = useState(null);
+
+  // Keep ref to pause background polling while user is actively filling out modals
+  const isAnyModalOpen = isTvModalOpen || isPairModalOpen || isPlaylistModalOpen || isLayoutModalOpen;
+  const isModalOpenRef = useRef(isAnyModalOpen);
+  isModalOpenRef.current = isAnyModalOpen;
 
   // Load all initial data from backend API
   const loadData = async () => {
@@ -79,7 +87,11 @@ export default function App() {
   useEffect(() => {
     if (!authToken) return;
     loadData();
-    const interval = setInterval(loadData, 10000); // Polling every 10s
+    const interval = setInterval(() => {
+      if (!isModalOpenRef.current) {
+        loadData();
+      }
+    }, 10000); // Polling every 10s only if no modal is open
 
     // Setup WebSocket for instant real-time events
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -89,7 +101,7 @@ export default function App() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.event === 'tv_update') {
+        if (msg.event === 'tv_update' && !isModalOpenRef.current) {
           loadData();
         }
       } catch (e) {
@@ -156,6 +168,78 @@ export default function App() {
     }
     await loadData();
   };
+
+  // TV Assign physical device/PIN to existing TV profile
+  const handleAssignDevice = async (assignData) => {
+    const res = await fetch('/api/tvs/assign-device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(assignData)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Falha ao vincular dispositivo');
+    }
+    await loadData();
+  };
+
+  // Layout Save / Update
+  const handleSaveLayout = async (layoutData) => {
+    try {
+      if (layoutData.id) {
+        await fetch(`/api/layouts/${layoutData.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(layoutData)
+        });
+      } else {
+        await fetch('/api/layouts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(layoutData)
+        });
+      }
+      setIsLayoutModalOpen(false);
+      setEditingLayout(null);
+      await loadData();
+    } catch (err) {
+      alert('Erro ao salvar layout: ' + err.message);
+    }
+  };
+
+  // Delete Layout
+  const handleDeleteLayout = async (layoutId) => {
+    if (!window.confirm('Deseja remover este modelo de layout?')) return;
+    try {
+      const res = await fetch(`/api/layouts/${layoutId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Erro ao excluir layout');
+      }
+      await loadData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // Apply layout to all TVs
+  const handleApplyLayoutToAll = async (layout) => {
+    if (!window.confirm(`Deseja aplicar o layout "${layout.name}" em TODAS as ${tvs.length} TVs cadastradas?`)) return;
+    try {
+      for (const t of tvs) {
+        await fetch(`/api/tvs/${t.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ layout_id: layout.id })
+        });
+      }
+      alert(`Layout "${layout.name}" aplicado a todas as TVs com sucesso!`);
+      await loadData();
+    } catch (err) {
+      alert('Erro ao aplicar layout: ' + err.message);
+    }
+  };
+
 
   // Playlist Save / Update
   const handleSavePlaylist = async (playlistData) => {
@@ -761,8 +845,17 @@ export default function App() {
         {/* VIEW 5: LAYOUT PRESETS */}
         {activeTab === 'layouts' && (
           <div>
-            <div style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginBottom: 24 }}>
-              Selecione e personalize o estilo visual da tela que é renderizado nas TVs.
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                Selecione, edite e crie novos modelos visuais da tela para renderizar no APK das Smart TVs.
+              </div>
+              <button 
+                className="btn btn-primary"
+                onClick={() => { setEditingLayout(null); setIsLayoutModalOpen(true); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+              >
+                <Plus size={16} /> Novo Modelo de Layout
+              </button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 24 }}>
@@ -790,21 +883,53 @@ export default function App() {
                   }}>
                     <div>Posição do Menu: <strong>{layout.config.dock_position || layout.config.sidebar_position || 'Inferior'}</strong></div>
                     <div>Relógio Ativo: <strong>{layout.config.show_clock !== false ? 'Sim' : 'Não'}</strong></div>
-                    <div>Auto-ocultar Menu: <strong>{layout.config.auto_hide_dock ? 'Sim (15s)' : 'Sempre Visível'}</strong></div>
+                    <div>Auto-ocultar Menu: <strong>{layout.config.auto_hide_dock ? `Sim (${layout.config.auto_hide_seconds || 15}s)` : 'Sempre Visível'}</strong></div>
                   </div>
 
-                  <button 
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      // Apply this layout to simulator TV and open simulator
-                      if (currentSimulatorTv) {
-                        setSelectedTvForSimulator({ ...currentSimulatorTv, layout_id: layout.id, layout: layout });
-                        setActiveTab('simulator');
-                      }
-                    }}
-                  >
-                    <Eye size={14} /> Testar no Simulador
-                  </button>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        if (currentSimulatorTv) {
+                          setSelectedTvForSimulator({ ...currentSimulatorTv, layout_id: layout.id, layout: layout });
+                          setActiveTab('simulator');
+                        }
+                      }}
+                      title="Visualizar no Simulador Web"
+                    >
+                      <Eye size={14} /> Simulador
+                    </button>
+
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setEditingLayout(layout);
+                        setIsLayoutModalOpen(true);
+                      }}
+                      title="Editar Propriedades do Modelo"
+                    >
+                      <Edit size={14} /> Editar
+                    </button>
+
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}
+                      onClick={() => handleApplyLayoutToAll(layout)}
+                      title="Aplicar este layout para todas as TVs"
+                    >
+                      <Send size={14} /> Aplicar a Todas
+                    </button>
+
+                    {!layout.is_default && (
+                      <button 
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDeleteLayout(layout.id)}
+                        title="Excluir Modelo"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -870,6 +995,8 @@ export default function App() {
         isOpen={isPairModalOpen}
         onClose={() => setIsPairModalOpen(false)}
         onClaim={handleClaimTv}
+        onAssignDevice={handleAssignDevice}
+        tvs={tvs}
         layouts={layouts}
         playlists={playlists}
       />
@@ -883,6 +1010,14 @@ export default function App() {
         onUploadMedia={handleUploadMedia}
         onDeleteMedia={() => {}}
       />
+
+      <LayoutModal
+        isOpen={isLayoutModalOpen}
+        onClose={() => { setIsLayoutModalOpen(false); setEditingLayout(null); }}
+        onSave={handleSaveLayout}
+        layout={editingLayout}
+      />
+
     </div>
   );
 }

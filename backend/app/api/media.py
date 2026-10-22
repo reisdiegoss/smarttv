@@ -3,7 +3,7 @@ import shutil
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
@@ -189,3 +189,41 @@ async def stream_media(media_id: int, request: Request, db: AsyncSession = Depen
         raise HTTPException(status_code=404, detail="Arquivo de vídeo não encontrado no disco")
 
     return range_requests_response(request, media.file_path, media.mime_type or "video/mp4")
+
+@router.post("/upload-image")
+async def upload_image(file: UploadFile = File(...)):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Arquivo sem nome")
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    allowed_exts = [".png", ".jpg", ".jpeg", ".webp", ".svg"]
+    if ext not in allowed_exts:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Formato de imagem não suportado ({ext}). Envie .png, .jpg ou .webp"
+        )
+
+    images_dir = os.path.join(settings.UPLOAD_DIR, "images")
+    os.makedirs(images_dir, exist_ok=True)
+
+    unique_filename = f"{uuid.uuid4().hex}{ext}"
+    dest_path = os.path.join(images_dir, unique_filename)
+
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    return {
+        "status": "ok",
+        "url": f"/api/media/image/{unique_filename}",
+        "filename": unique_filename,
+        "original_filename": file.filename
+    }
+
+@router.get("/image/{filename}")
+async def get_image(filename: str):
+    images_dir = os.path.join(settings.UPLOAD_DIR, "images")
+    file_path = os.path.join(images_dir, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Imagem não encontrada")
+    return FileResponse(file_path)
+

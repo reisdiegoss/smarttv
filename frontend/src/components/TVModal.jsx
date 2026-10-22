@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { X, Tv, Save, CheckSquare, Square, Layers, Film, Wifi, Settings2, Hash, Power, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Tv, Save, CheckSquare, Square, Layers, Film, Wifi, QrCode, Upload, Trash2, Smartphone, Key } from 'lucide-react';
 
 export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlists, shortcuts }) {
   const [name, setName] = useState('');
   const [roomGroup, setRoomGroup] = useState('Geral');
   const [layoutId, setLayoutId] = useState('');
   const [playlistId, setPlaylistId] = useState('');
+  const [deviceId, setDeviceId] = useState('');
+  const [pairingCode, setPairingCode] = useState('');
   const [enableHdmi, setEnableHdmi] = useState(true);
   const [hdmiInputId, setHdmiInputId] = useState('HDMI 1');
   const [hdmiLabel, setHdmiLabel] = useState('TV SKY');
@@ -15,18 +17,25 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
     welcome_subtitle: 'Aproveite o melhor do entretenimento.',
     wifi_ssid: 'SmartTV-Guest',
     wifi_password: 'smarttvresort',
+    wifi_qrcode_url: '',
     auto_hide_dock: true,
     auto_hide_seconds: 15
   });
+  const [uploadingQr, setUploadingQr] = useState(false);
+  const fileInputRef = useRef(null);
 
   const appShortcuts = shortcuts.filter(s => !s.is_hdmi);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     if (tv) {
       setName(tv.name || '');
       setRoomGroup(tv.room_group || 'Geral');
       setLayoutId(tv.layout_id || (layouts[0]?.id || ''));
       setPlaylistId(tv.playlist_id || (playlists[0]?.id || ''));
+      setDeviceId(tv.device_id || '');
+      setPairingCode(tv.pairing_code || '');
       
       const isHdmiOn = tv.hdmi_input_id !== 'NONE' && tv.hdmi_input_id !== 'DISABLED' && tv.hdmi_input_id !== null && tv.custom_settings?.hide_hdmi !== true;
       setEnableHdmi(isHdmiOn);
@@ -34,29 +43,47 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
       setHdmiLabel(tv.hdmi_label || 'TV SKY');
       
       if (Array.isArray(tv.selected_shortcuts) && tv.selected_shortcuts.length > 0) {
-        // Filtra apenas atalhos que não sejam HDMI
         setSelectedShortcuts(tv.selected_shortcuts.filter(id => appShortcuts.some(a => a.id === id)));
       } else if (Array.isArray(tv.selected_shortcuts) && tv.selected_shortcuts.length === 0 && tv.id) {
-        // Usuário desmarcou todos intencionalmente
         setSelectedShortcuts([]);
       } else {
         setSelectedShortcuts(appShortcuts.map(s => s.id));
       }
       
       if (tv.custom_settings) {
-        setCustomSettings(prev => ({ ...prev, ...tv.custom_settings }));
+        setCustomSettings({
+          welcome_title: tv.custom_settings.welcome_title || 'Seja Bem-vindo(a)!',
+          welcome_subtitle: tv.custom_settings.welcome_subtitle || 'Aproveite o melhor do entretenimento.',
+          wifi_ssid: tv.custom_settings.wifi_ssid || '',
+          wifi_password: tv.custom_settings.wifi_password || '',
+          wifi_qrcode_url: tv.custom_settings.wifi_qrcode_url || '',
+          auto_hide_dock: tv.custom_settings.auto_hide_dock ?? true,
+          auto_hide_seconds: tv.custom_settings.auto_hide_seconds || 15,
+          ...tv.custom_settings
+        });
       }
     } else {
       setName('');
       setRoomGroup('Geral');
       setLayoutId(layouts[0]?.id || '');
       setPlaylistId(playlists[0]?.id || '');
+      setDeviceId('');
+      setPairingCode('');
       setEnableHdmi(true);
       setHdmiInputId('HDMI 1');
       setHdmiLabel('TV SKY');
       setSelectedShortcuts(appShortcuts.map(s => s.id));
+      setCustomSettings({
+        welcome_title: 'Seja Bem-vindo(a)!',
+        welcome_subtitle: 'Aproveite o melhor do entretenimento.',
+        wifi_ssid: 'SmartTV-Guest',
+        wifi_password: 'smarttvresort',
+        wifi_qrcode_url: '',
+        auto_hide_dock: true,
+        auto_hide_seconds: 15
+      });
     }
-  }, [tv, layouts, playlists, shortcuts, isOpen]);
+  }, [isOpen, tv?.id]);
 
   if (!isOpen) return null;
 
@@ -74,6 +101,32 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
     setSelectedShortcuts([]);
   };
 
+  const handleQrUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    setUploadingQr(true);
+    try {
+      const res = await fetch('/api/media/upload-image', {
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) throw new Error('Falha no upload da imagem');
+      const data = await res.json();
+      setCustomSettings(prev => ({ ...prev, wifi_qrcode_url: data.url }));
+    } catch (err) {
+      alert('Erro ao enviar imagem: ' + err.message);
+    } finally {
+      setUploadingQr(false);
+    }
+  };
+
+  const handleRemoveQr = () => {
+    setCustomSettings(prev => ({ ...prev, wifi_qrcode_url: '' }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return alert('Informe o nome da TV');
@@ -84,6 +137,8 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
       room_group: roomGroup,
       layout_id: layoutId ? parseInt(layoutId) : null,
       playlist_id: playlistId ? parseInt(playlistId) : null,
+      device_id: deviceId.trim() || undefined,
+      pairing_code: pairingCode.trim() ? pairingCode.trim().toUpperCase() : undefined,
       hdmi_input_id: enableHdmi ? hdmiInputId : 'NONE',
       hdmi_label: hdmiLabel,
       selected_shortcuts: selectedShortcuts,
@@ -96,7 +151,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 660, maxHeight: '92vh', overflowY: 'auto' }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
@@ -110,7 +165,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                 {tv ? `Configurar: ${tv.name}` : 'Cadastrar Nova Smart TV'}
               </h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Personalize os vídeos, atalhos de apps e entrada HDMI individualmente para esta TV.
+                Personalize os vídeos, atalhos de apps, modelo visual e entrada HDMI para esta TV.
               </p>
             </div>
           </div>
@@ -147,7 +202,47 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
               </div>
             </div>
 
-            {/* Seção 2: Layout e Playlist de Vídeos */}
+            {/* Seção 2: Vínculo com Dispositivo Físico / Código PIN */}
+            <div style={{
+              background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.2)',
+              borderRadius: 14, padding: 14
+            }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#93c5fd', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Smartphone size={16} /> Dispositivo Físico Vinculado (Android TV)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>Código PIN da TV (Exibido na tela)</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Ex: TM-3400"
+                    value={pairingCode}
+                    onChange={e => setPairingCode(e.target.value.toUpperCase())}
+                    style={{ fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.1em' }}
+                  />
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Digite o código de 6 caracteres para vincular esta TV.
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>ID do Aparelho (Device ID)</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Ex: TV-D6165722"
+                    value={deviceId}
+                    onChange={e => setDeviceId(e.target.value)}
+                    style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
+                  />
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Identificador único gerado pelo APK.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Seção 3: Layout e Playlist de Vídeos */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -180,7 +275,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
               </div>
             </div>
 
-            {/* Seção 3: Entrada HDMI (Sky / Receptor) */}
+            {/* Seção 4: Entrada HDMI (Sky / Receptor) */}
             <div style={{
               background: enableHdmi ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255, 255, 255, 0.02)',
               border: enableHdmi ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
@@ -223,19 +318,19 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                       value={hdmiInputId}
                       onChange={e => setHdmiInputId(e.target.value)}
                     >
-                      <option value="HDMI 1">HDMI 1 (Padrão)</option>
-                      <option value="HDMI 2">HDMI 2</option>
+                      <option value="HDMI 1">HDMI 1</option>
+                      <option value="HDMI 2">HDMI 2 (Recomendado Sky)</option>
                       <option value="HDMI 3">HDMI 3</option>
                       <option value="HDMI 4">HDMI 4</option>
-                      <option value="HW1">HW1 (TCL / Philips Passthrough)</option>
-                      <option value="HW2">HW2 (Passthrough)</option>
+                      <option value="HW1">HW1 (Passthrough Direto)</option>
+                      <option value="HW2">HW2 (Passthrough Direto)</option>
                     </select>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Seção 4: Seleção Individual de Aplicativos */}
+            {/* Seção 5: Seleção Individual de Aplicativos */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <label className="form-label" style={{ margin: 0 }}>
@@ -286,7 +381,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
               </div>
             </div>
 
-            {/* Seção 5: Mensagem de Boas-Vindas e Wi-Fi */}
+            {/* Seção 6: Mensagem de Boas-Vindas e Wi-Fi com QR Code Upload */}
             <div style={{
               background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-subtle)',
               borderRadius: 14, padding: 16
@@ -330,6 +425,71 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                     value={customSettings.wifi_password}
                     onChange={e => setCustomSettings({ ...customSettings, wifi_password: e.target.value })}
                   />
+                </div>
+              </div>
+
+              {/* Upload da Imagem do QR Code do Wi-Fi */}
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <label className="form-label" style={{ margin: 0, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <QrCode size={15} color="#34d399" /> Imagem do QR Code de Conexão Wi-Fi
+                  </label>
+                  {customSettings.wifi_qrcode_url && (
+                    <button 
+                      type="button" 
+                      onClick={handleRemoveQr} 
+                      className="btn btn-danger btn-sm"
+                      style={{ padding: '3px 8px', fontSize: '0.72rem' }}
+                    >
+                      <Trash2 size={12} /> Remover QR Code
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  {customSettings.wifi_qrcode_url ? (
+                    <div style={{
+                      width: 72, height: 72, borderRadius: 10, background: '#fff',
+                      padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: '2px solid #34d399'
+                    }}>
+                      <img 
+                        src={customSettings.wifi_qrcode_url} 
+                        alt="QR Code Wi-Fi" 
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                      />
+                    </div>
+                  ) : (
+                    <div style={{
+                      width: 72, height: 72, borderRadius: 10, background: 'rgba(255, 255, 255, 0.05)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b',
+                      border: '1px dashed rgba(255, 255, 255, 0.2)'
+                    }}>
+                      <QrCode size={30} />
+                    </div>
+                  )}
+
+                  <div style={{ flex: 1 }}>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handleQrUpload} 
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml" 
+                      style={{ display: 'none' }} 
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingQr}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Upload size={14} /> {uploadingQr ? 'Enviando imagem...' : (customSettings.wifi_qrcode_url ? 'Trocar Imagem do QR Code' : 'Fazer Upload da Imagem do QR Code')}
+                    </button>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                      Envie a imagem do QR Code (.png ou .jpg). Ela será exibida no topo da tela da TV ao lado da rede Wi-Fi.
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
