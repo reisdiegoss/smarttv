@@ -569,15 +569,33 @@ async def pull_from_hotel_db(
     import asyncio
     
     def fetch_hotel_rooms():
-        # Conecta no Postgres Central do Fasano
+        # Conecta no Postgres Central do Fasano e extrai todos os 70 quartos de users e assets
         import psycopg2
+        import re
         conn = psycopg2.connect("postgresql://postgres:6ffdd4a3d0e99d78b1e15f411b04e323@192.168.168.26:5432/tihfsa", connect_timeout=5)
         cur = conn.cursor()
-        cur.execute("SELECT room_number, display_name FROM users WHERE is_room = true ORDER BY room_number ASC")
-        rows = cur.fetchall()
+        
+        all_rooms = {}
+        # 1. Da tabela users
+        cur.execute("SELECT room_number, display_name FROM users WHERE room_number IS NOT NULL OR is_room = true")
+        for row in cur.fetchall():
+            r = str(row[0]).strip()
+            if r:
+                all_rooms[r] = str(row[1]).strip() if len(row) > 1 and row[1] else f"Quarto {r}"
+                
+        # 2. Da tabela assets (onde estão catalogados os equipamentos de rede de todos os 70 quartos dos andares 1 a 6)
+        cur.execute("SELECT name, description, model FROM assets")
+        for row in cur.fetchall():
+            text = f"{row[0] or ''} {row[1] or ''} {row[2] or ''}"
+            m = re.findall(r"\b(?:apt|uh|quarto|apartamento|suite)?\s*([1-6][0-1][0-9])\b", text, re.IGNORECASE)
+            for r in m:
+                if r not in all_rooms:
+                    all_rooms[r] = f"Quarto {r}"
+
         cur.close()
         conn.close()
-        return rows
+        sorted_keys = sorted(all_rooms.keys(), key=lambda x: int(x) if x.isdigit() else 9999)
+        return [(k, all_rooms[k]) for k in sorted_keys]
 
     try:
         hotel_rooms = await asyncio.to_thread(fetch_hotel_rooms)
@@ -586,16 +604,31 @@ async def pull_from_hotel_db(
         try:
             def fetch_with_psycopg():
                 import psycopg
+                import re
                 with psycopg.connect("postgresql://postgres:6ffdd4a3d0e99d78b1e15f411b04e323@192.168.168.26:5432/tihfsa", timeout=5) as c:
                     with c.cursor() as cur:
-                        cur.execute("SELECT room_number, display_name FROM users WHERE is_room = true ORDER BY room_number ASC")
-                        return cur.fetchall()
+                        all_rooms = {}
+                        cur.execute("SELECT room_number, display_name FROM users WHERE room_number IS NOT NULL OR is_room = true")
+                        for row in cur.fetchall():
+                            r = str(row[0]).strip()
+                            if r:
+                                all_rooms[r] = str(row[1]).strip() if len(row) > 1 and row[1] else f"Quarto {r}"
+                        cur.execute("SELECT name, description, model FROM assets")
+                        for row in cur.fetchall():
+                            text = f"{row[0] or ''} {row[1] or ''} {row[2] or ''}"
+                            m = re.findall(r"\b(?:apt|uh|quarto|apartamento|suite)?\s*([1-6][0-1][0-9])\b", text, re.IGNORECASE)
+                            for r in m:
+                                if r not in all_rooms:
+                                    all_rooms[r] = f"Quarto {r}"
+                        sorted_keys = sorted(all_rooms.keys(), key=lambda x: int(x) if x.isdigit() else 9999)
+                        return [(k, all_rooms[k]) for k in sorted_keys]
             hotel_rooms = await asyncio.to_thread(fetch_with_psycopg)
         except Exception as err:
             raise HTTPException(
                 status_code=502,
                 detail=f"Não foi possível conectar ao banco central do hotel (192.168.168.26): {str(err)}"
             )
+
 
     if not hotel_rooms:
         raise HTTPException(status_code=404, detail="Nenhuma UH encontrada no banco central do hotel.")
