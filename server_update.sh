@@ -27,6 +27,7 @@ echo "================================="
 echo ""
 
 echo "[2/4] Baixando atualizações (git pull)..."
+git reset --hard HEAD
 git pull origin main
 
 # Verifica se o frontend precisa de rebuild
