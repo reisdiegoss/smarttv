@@ -294,18 +294,12 @@ async def lifespan(app: FastAPI):
     # Startup: create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Migração segura e não-destrutiva de novas colunas
-        for col, col_type in [
-            ("group_id", "INTEGER REFERENCES tv_groups(id)"),
-            ("uh_number", "VARCHAR(50)"),
-            ("guest_name", "VARCHAR(150)"),
-            ("pin_code", "VARCHAR(20)"),
-            ("pms_enabled", "BOOLEAN DEFAULT TRUE")
-        ]:
-            try:
-                await conn.execute(text(f"ALTER TABLE smart_tvs ADD COLUMN {col} {col_type};"))
-            except Exception:
-                pass  # Coluna já existe
+        # Migração segura e não-destrutiva de novas colunas no PostgreSQL
+        await conn.execute(text("ALTER TABLE smart_tvs ADD COLUMN IF NOT EXISTS pms_enabled BOOLEAN DEFAULT TRUE;"))
+        await conn.execute(text("ALTER TABLE smart_tvs ADD COLUMN IF NOT EXISTS uh_number VARCHAR(50);"))
+        await conn.execute(text("ALTER TABLE smart_tvs ADD COLUMN IF NOT EXISTS guest_name VARCHAR(150);"))
+        await conn.execute(text("ALTER TABLE smart_tvs ADD COLUMN IF NOT EXISTS pin_code VARCHAR(20);"))
+        await conn.execute(text("ALTER TABLE smart_tvs ADD COLUMN IF NOT EXISTS group_id INTEGER;"))
     await seed_initial_data()
     # Inicia ouvinte em segundo plano FIAS (IFC8 192.168.162.18)
     fias_service.start()
