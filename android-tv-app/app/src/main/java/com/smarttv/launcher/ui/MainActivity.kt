@@ -82,6 +82,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvOverlayTitle: TextView
     private lateinit var tvServerStatus: TextView
     private lateinit var btnSetDefaultLauncherTop: Button
+    private lateinit var btnSetDefaultLauncherBottom: Button
 
     // Mode 1: Initial Pairing (Unpaired)
     private lateinit var panelPairingUnpaired: View
@@ -152,6 +153,7 @@ class MainActivity : AppCompatActivity() {
         tvOverlayTitle = findViewById(R.id.tvOverlayTitle)
         tvServerStatus = findViewById(R.id.tvServerStatus)
         btnSetDefaultLauncherTop = findViewById(R.id.btnSetDefaultLauncherTop)
+        btnSetDefaultLauncherBottom = findViewById(R.id.btnSetDefaultLauncherBottom)
 
         // Mode 1: Inicial (Não pareado)
         panelPairingUnpaired = findViewById(R.id.panelPairingUnpaired)
@@ -559,6 +561,7 @@ class MainActivity : AppCompatActivity() {
 
         btnSetDefaultLauncher.setOnClickListener { requestSetDefaultLauncher() }
         btnSetDefaultLauncherTop.setOnClickListener { requestSetDefaultLauncher() }
+        btnSetDefaultLauncherBottom.setOnClickListener { requestSetDefaultLauncher() }
         btnSettingsExitApp.setOnClickListener { exitToStockLauncher() }
 
         btnSettingsDone.setOnClickListener {
