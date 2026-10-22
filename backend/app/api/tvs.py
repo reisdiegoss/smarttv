@@ -1,5 +1,6 @@
 import random
 import string
+import uuid
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -164,11 +165,21 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
     if payload.device_id is not None and payload.device_id != tv.device_id:
         existing_dev = await db.execute(select(SmartTV).where(SmartTV.device_id == payload.device_id, SmartTV.id != tv.id))
         for old_tv in existing_dev.scalars().all():
-            if old_tv.ip_address:
+            if old_tv.ip_address and not tv.ip_address:
                 tv.ip_address = old_tv.ip_address
-            if old_tv.app_version:
+            if old_tv.app_version and not tv.app_version:
                 tv.app_version = old_tv.app_version
+            if old_tv.mac_address and not tv.mac_address:
+                tv.mac_address = old_tv.mac_address
+            if old_tv.pairing_code and not tv.pairing_code:
+                tv.pairing_code = old_tv.pairing_code
+
+            await db.execute(update(DeviceLog).where(DeviceLog.tv_id == old_tv.id).values(tv_id=tv.id))
+            old_tv.device_id = f"TEMP-DEL-{old_tv.id}-{uuid.uuid4().hex[:6]}"
+            old_tv.pairing_code = None
+            await db.flush()
             await db.delete(old_tv)
+            await db.flush()
         tv.device_id = payload.device_id
         tv.is_paired = True
     if payload.pairing_code is not None:
@@ -178,9 +189,17 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
             for old_tv in existing_code.scalars().all():
                 if old_tv.device_id and not tv.device_id:
                     tv.device_id = old_tv.device_id
-                if old_tv.ip_address:
+                if old_tv.ip_address and not tv.ip_address:
                     tv.ip_address = old_tv.ip_address
+                if old_tv.mac_address and not tv.mac_address:
+                    tv.mac_address = old_tv.mac_address
+
+                await db.execute(update(DeviceLog).where(DeviceLog.tv_id == old_tv.id).values(tv_id=tv.id))
+                old_tv.device_id = f"TEMP-DEL-{old_tv.id}-{uuid.uuid4().hex[:6]}"
+                old_tv.pairing_code = None
+                await db.flush()
                 await db.delete(old_tv)
+                await db.flush()
             tv.pairing_code = clean_code
             tv.is_paired = True
     if payload.is_paired is not None:
@@ -359,15 +378,35 @@ async def bind_device(payload: SmartTVBindRequest, request: Request, db: AsyncSe
     if not tv:
         raise HTTPException(status_code=404, detail="TV não encontrada")
 
-    # Se já existir alguma TV órfã/temporária com o mesmo device_id (diferente desta), deleta
+    # Se já existir alguma TV órfã/temporária com o mesmo device_id (diferente desta),
+    # precisamos liberar a UNIQUE constraint ix_smart_tvs_device_id antes de atualizar esta TV
     existing = await db.execute(select(SmartTV).where(SmartTV.device_id == payload.device_id, SmartTV.id != payload.tv_id))
     for old_tv in existing.scalars().all():
+        if old_tv.pairing_code and not tv.pairing_code:
+            tv.pairing_code = old_tv.pairing_code
+        if old_tv.mac_address and not tv.mac_address:
+            tv.mac_address = old_tv.mac_address
+        if old_tv.ip_address and not payload.ip_address:
+            tv.ip_address = old_tv.ip_address
+
+        # Reatribui logs da TV temporária para a TV vinculada
+        await db.execute(
+            update(DeviceLog).where(DeviceLog.tv_id == old_tv.id).values(tv_id=tv.id)
+        )
+
+        # Modifica o device_id e pairing_code da temporária para liberar o índice UNIQUE
+        old_tv.device_id = f"TEMP-DEL-{old_tv.id}-{uuid.uuid4().hex[:6]}"
+        old_tv.pairing_code = None
+        await db.flush()
+
         await db.delete(old_tv)
+        await db.flush()
 
     tv.device_id = payload.device_id
     tv.is_paired = True
     tv.is_online = True
     tv.last_ping = datetime.utcnow()
+    tv.updated_at = datetime.utcnow()
     if payload.ip_address:
         tv.ip_address = payload.ip_address
     if payload.app_version:
@@ -409,8 +448,8 @@ async def assign_device(payload: SmartTVAssignDeviceRequest, request: Request, d
         source_tv = res_dev.scalar_one_or_none()
 
     if source_tv:
-        target_tv.device_id = source_tv.device_id
-        target_tv.pairing_code = source_tv.pairing_code or target_tv.pairing_code
+        saved_device_id = source_tv.device_id
+        saved_pairing_code = source_tv.pairing_code
         target_tv.ip_address = source_tv.ip_address or target_tv.ip_address
         target_tv.mac_address = source_tv.mac_address or target_tv.mac_address
         target_tv.app_version = source_tv.app_version or target_tv.app_version
@@ -418,10 +457,36 @@ async def assign_device(payload: SmartTVAssignDeviceRequest, request: Request, d
         target_tv.last_ping = source_tv.last_ping
         target_tv.is_paired = True
         target_tv.updated_at = datetime.utcnow()
+
+        # Reatribui logs da source_tv para target_tv
+        await db.execute(
+            update(DeviceLog).where(DeviceLog.tv_id == source_tv.id).values(tv_id=target_tv.id)
+        )
+
+        # Libera UNIQUE constraints da source_tv antes de deletar
+        source_tv.device_id = f"TEMP-DEL-{source_tv.id}-{uuid.uuid4().hex[:6]}"
+        source_tv.pairing_code = None
+        await db.flush()
+
         await db.delete(source_tv)
+        await db.flush()
+
+        target_tv.device_id = saved_device_id
+        if saved_pairing_code:
+            target_tv.pairing_code = saved_pairing_code
     else:
+        # Se foi fornecido device_id, limpa qualquer conflito com outras TVs
         if payload.device_id:
-            target_tv.device_id = payload.device_id.strip()
+            dev_id_clean = payload.device_id.strip()
+            conflicts = await db.execute(select(SmartTV).where(SmartTV.device_id == dev_id_clean, SmartTV.id != target_tv.id))
+            for c in conflicts.scalars().all():
+                c.device_id = f"TEMP-DEL-{c.id}-{uuid.uuid4().hex[:6]}"
+                c.pairing_code = None
+                await db.flush()
+                await db.delete(c)
+                await db.flush()
+            target_tv.device_id = dev_id_clean
+
         if payload.pairing_code:
             target_tv.pairing_code = payload.pairing_code.strip().upper()
         target_tv.is_paired = True
