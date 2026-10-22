@@ -21,7 +21,7 @@
         android:layout_height="match_parent"
         android:background="@drawable/scrim_overlay" />
 
-    <!-- Cabeçalho Superior: Título, Relógio e Wi-Fi -->
+    <!-- Cabeçalho Superior: Título, Clima, Relógio e Wi-Fi -->
     <LinearLayout
         android:id="@+id/layoutHeader"
         android:layout_width="match_parent"
@@ -31,6 +31,7 @@
         android:gravity="center_vertical">
 
         <LinearLayout
+            android:id="@+id/containerWelcome"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -63,63 +64,115 @@
                 android:shadowRadius="8" />
         </LinearLayout>
 
-        <!-- Relógio Digital -->
-        <TextView
-            android:id="@+id/tvTime"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_clock_pill"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="10dp"
-            android:text="12:00"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            android:textStyle="bold" />
-
-        <!-- Card de Wi-Fi -->
         <LinearLayout
-            android:id="@+id/cardWifi"
+            android:id="@+id/containerHeaderWidgets"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:background="@drawable/bg_wifi_pill"
-            android:paddingHorizontal="14dp"
-            android:paddingVertical="8dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <ImageView
-                android:id="@+id/ivWifiQrCode"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="10dp"
-                android:background="#FFFFFF"
-                android:padding="3dp"
-                android:scaleType="fitCenter"
-                android:visibility="gone" />
-
+            <!-- Card de Previsão do Tempo -->
             <LinearLayout
-                android:id="@+id/containerWifiText"
+                android:id="@+id/cardWeather"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:layout_marginEnd="14dp"
+                android:background="@drawable/bg_clock_pill"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
 
-                <TextView
-                    android:id="@+id/tvWifiSsid"
+                <ImageView
+                    android:id="@+id/ivWeatherIcon"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:layout_marginEnd="8dp"
+                    android:src="@drawable/ic_weather_sunny" />
+
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Wi-Fi Hotel"
-                    android:textColor="#34D399"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
+                    android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/tvWifiPass"
+                    <TextView
+                        android:id="@+id/tvWeatherTemp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="28°C"
+                        android:textColor="#FFFFFF"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvWeatherCity"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Salvador"
+                        android:textColor="#9CA3AF"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Relógio Digital -->
+            <TextView
+                android:id="@+id/tvTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_clock_pill"
+                android:paddingHorizontal="20dp"
+                android:paddingVertical="10dp"
+                android:text="12:00"
+                android:textColor="#FFFFFF"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <!-- Card de Wi-Fi -->
+            <LinearLayout
+                android:id="@+id/cardWifi"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:background="@drawable/bg_wifi_pill"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/ivWifiQrCode"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="10dp"
+                    android:background="#FFFFFF"
+                    android:padding="3dp"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/containerWifiText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Senha: hotel"
-                    android:textColor="#9CA3AF"
-                    android:textSize="12sp" />
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvWifiSsid"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Wi-Fi Hotel"
+                        android:textColor="#34D399"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvWifiPass"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Senha: hotel"
+                        android:textColor="#9CA3AF"
+                        android:textSize="12sp" />
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

@@ -11,6 +11,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -50,9 +52,15 @@ class MainActivity : AppCompatActivity() {
 
     // Launcher UI elements (Header & Dock)
     private lateinit var layoutHeader: View
+    private lateinit var containerWelcome: View
+    private lateinit var containerHeaderWidgets: View
     private lateinit var tvTitle: TextView
     private lateinit var tvSubtitle: TextView
     private lateinit var tvTime: TextView
+    private lateinit var cardWeather: View
+    private lateinit var ivWeatherIcon: ImageView
+    private lateinit var tvWeatherTemp: TextView
+    private lateinit var tvWeatherCity: TextView
     private lateinit var cardWifi: View
     private lateinit var ivWifiQrCode: ImageView
     private lateinit var tvWifiSsid: TextView
@@ -122,9 +130,15 @@ class MainActivity : AppCompatActivity() {
         // Elementos da tela de exibição (Launcher)
         playerView = findViewById(R.id.playerView)
         layoutHeader = findViewById(R.id.layoutHeader)
+        containerWelcome = findViewById(R.id.containerWelcome)
+        containerHeaderWidgets = findViewById(R.id.containerHeaderWidgets)
         tvTitle = findViewById(R.id.tvTitle)
         tvSubtitle = findViewById(R.id.tvSubtitle)
         tvTime = findViewById(R.id.tvTime)
+        cardWeather = findViewById(R.id.cardWeather)
+        ivWeatherIcon = findViewById(R.id.ivWeatherIcon)
+        tvWeatherTemp = findViewById(R.id.tvWeatherTemp)
+        tvWeatherCity = findViewById(R.id.tvWeatherCity)
         cardWifi = findViewById(R.id.cardWifi)
         ivWifiQrCode = findViewById(R.id.ivWifiQrCode)
         tvWifiSsid = findViewById(R.id.tvWifiSsid)
@@ -1036,6 +1050,70 @@ class MainActivity : AppCompatActivity() {
         tvTitle.text = (custom["welcome_title"] as? String)?.takeIf { it.isNotBlank() } ?: defaultWelcome
         tvSubtitle.text = (custom["welcome_subtitle"] as? String)?.takeIf { it.isNotBlank() } ?: "Aproveite a sua estadia com conforto e entretenimento."
 
+        // Tamanho Dinâmico da Mensagem na Tela
+        val titleFontSize = when (val s = custom["title_font_size"]) {
+            is Number -> s.toInt().coerceIn(16, 56)
+            is String -> (s.toIntOrNull() ?: 32).coerceIn(16, 56)
+            else -> 32
+        }
+        tvTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, titleFontSize.toFloat())
+        val subtitleFontSize = (titleFontSize * 0.54f).coerceAtLeast(12f)
+        tvSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, subtitleFontSize)
+
+        // Relógio Digital no Topo com Tamanho Dinâmico
+        val showClock = (custom["show_clock"] as? Boolean) ?: true
+        tvTime.visibility = if (showClock) View.VISIBLE else View.GONE
+        val clockFontSize = when (val s = custom["clock_font_size"]) {
+            is Number -> s.toInt().coerceIn(14, 48)
+            is String -> (s.toIntOrNull() ?: 22).coerceIn(14, 48)
+            else -> 22
+        }
+        tvTime.setTextSize(TypedValue.COMPLEX_UNIT_SP, clockFontSize.toFloat())
+
+        // Widget de Previsão do Tempo
+        val showWeather = (custom["show_weather"] as? Boolean) ?: true
+        if (showWeather) {
+            val weatherCity = (custom["weather_city"] as? String)?.trim() ?: "Salvador"
+            val weatherTemp = (custom["weather_temp"] as? String)?.trim() ?: "28°C"
+            val weatherCond = (custom["weather_condition"] as? String)?.trim()?.lowercase() ?: "sunny"
+
+            tvWeatherTemp.text = weatherTemp
+            tvWeatherCity.text = weatherCity
+
+            val weatherRes = when (weatherCond) {
+                "sunny" -> R.drawable.ic_weather_sunny
+                "partly_cloudy" -> R.drawable.ic_weather_partly_cloudy
+                "cloudy" -> R.drawable.ic_weather_cloudy
+                "rain" -> R.drawable.ic_weather_rain
+                "clear_night" -> R.drawable.ic_weather_night
+                else -> R.drawable.ic_weather_sunny
+            }
+            ivWeatherIcon.setImageResource(weatherRes)
+            cardWeather.visibility = View.VISIBLE
+        } else {
+            cardWeather.visibility = View.GONE
+        }
+
+        // Layout de Cabeçalho (Posições / Alinhamento)
+        val headerLayout = (custom["header_layout"] as? String)?.trim() ?: "welcome_left_widgets_right"
+        if (layoutHeader is LinearLayout) {
+            val headerLinear = layoutHeader as LinearLayout
+            headerLinear.removeAllViews()
+            if (headerLayout == "widgets_left_welcome_right") {
+                headerLinear.addView(containerHeaderWidgets)
+                headerLinear.addView(containerWelcome)
+                (containerWelcome as? LinearLayout)?.gravity = Gravity.END
+                tvTitle.gravity = Gravity.END
+                tvSubtitle.gravity = Gravity.END
+            } else {
+                headerLinear.addView(containerWelcome)
+                headerLinear.addView(containerHeaderWidgets)
+                (containerWelcome as? LinearLayout)?.gravity = Gravity.START
+                tvTitle.gravity = Gravity.START
+                tvSubtitle.gravity = Gravity.START
+            }
+        }
+
         val wifiSsid = (custom["wifi_ssid"] as? String)?.trim() ?: ""
         val wifiPass = (custom["wifi_password"] as? String)?.trim() ?: ""
 
@@ -1265,12 +1343,33 @@ class MainActivity : AppCompatActivity() {
     private fun setupShortcuts(config: TVConfigResponse) {
         containerShortcuts.removeAllViews()
 
+        // Tamanho Dinâmico dos Ícones e Botões da Dock
+        val dockIconSize = when (val s = (config.customSettings ?: emptyMap())["dock_icon_size"]) {
+            is Number -> s.toInt().coerceIn(44, 115)
+            is String -> (s.toIntOrNull() ?: 72).coerceIn(44, 115)
+            else -> 72
+        }
+        val btnWidthPx = dpToPx((dockIconSize * 1.65).toInt())
+        val btnHeightPx = dpToPx((dockIconSize * 1.15).toInt())
+        val iconSizePx = dpToPx((dockIconSize * 0.44).toInt())
+        val textSp = (dockIconSize * 0.175f).coerceIn(10f, 18f)
+
         // 1. Botão HDMI SKY
         if (config.hdmi.enabled && config.hdmi.inputId != "NONE" && config.hdmi.inputId.isNotBlank()) {
             val btnSky = layoutInflater.inflate(R.layout.item_shortcut_button, containerShortcuts, false)
             val textSky = btnSky.findViewById<TextView>(R.id.tvShortcutName)
             val iconSky = btnSky.findViewById<ImageView>(R.id.ivShortcutIcon)
 
+            val lp = LinearLayout.LayoutParams(btnWidthPx, btnHeightPx)
+            lp.marginEnd = dpToPx(14)
+            btnSky.layoutParams = lp
+
+            val iconLp = iconSky.layoutParams
+            iconLp.width = iconSizePx
+            iconLp.height = iconSizePx
+            iconSky.layoutParams = iconLp
+
+            textSky.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSp)
             textSky.text = config.hdmi.label
             iconSky.setImageResource(R.drawable.ic_hdmi_tv)
             btnSky.setBackgroundResource(R.drawable.bg_shortcut_sky)
@@ -1291,6 +1390,16 @@ class MainActivity : AppCompatActivity() {
             val textApp = btnApp.findViewById<TextView>(R.id.tvShortcutName)
             val iconApp = btnApp.findViewById<ImageView>(R.id.ivShortcutIcon)
 
+            val lp = LinearLayout.LayoutParams(btnWidthPx, btnHeightPx)
+            lp.marginEnd = dpToPx(14)
+            btnApp.layoutParams = lp
+
+            val iconLp = iconApp.layoutParams
+            iconLp.width = iconSizePx
+            iconLp.height = iconSizePx
+            iconApp.layoutParams = iconLp
+
+            textApp.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSp)
             textApp.text = sc.name
             btnApp.setBackgroundResource(R.drawable.bg_shortcut_item)
 

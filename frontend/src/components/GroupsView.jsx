@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   FolderTree, Plus, Edit, Trash2, Users, Layers, Film, 
-  Tv, CheckSquare, Square, Save, X, Sparkles, Key, Radio, Wifi
+  Tv, CheckSquare, Square, Save, X, Sparkles, Key, Radio, Wifi,
+  Sliders, Type, Clock, Sun, CloudSun, Cloud, CloudRain, Moon, AlignLeft, AlignRight
 } from 'lucide-react';
 
 export default function GroupsView({ 
@@ -32,11 +33,18 @@ export default function GroupsView({
   const [formCustomSettings, setFormCustomSettings] = useState({
     welcome_title: 'Seja Bem-vindo(a)!',
     welcome_subtitle: 'Aproveite a sua estadia com o melhor do entretenimento.',
+    title_font_size: 32,
+    show_clock: true,
+    clock_font_size: 24,
+    show_weather: true,
+    weather_city: 'Salvador',
+    weather_temp: '28°C',
+    weather_condition: 'sunny',
+    dock_icon_size: 72,
+    header_layout: 'welcome_left_widgets_right',
     wifi_ssid: 'Fasano-Guest',
     wifi_password: 'fasanobemvindo',
-    show_clock: true,
-    show_weather: true,
-    weather_city: 'São Paulo',
+    wifi_qr_size: 110,
     auto_hide_dock: true,
     auto_hide_seconds: 15,
     volume_limit: 80,
@@ -57,11 +65,18 @@ export default function GroupsView({
     setFormCustomSettings({
       welcome_title: 'Seja Bem-vindo(a)!',
       welcome_subtitle: 'Aproveite a sua estadia com o melhor do entretenimento.',
+      title_font_size: 32,
+      show_clock: true,
+      clock_font_size: 24,
+      show_weather: true,
+      weather_city: 'Salvador',
+      weather_temp: '28°C',
+      weather_condition: 'sunny',
+      dock_icon_size: 72,
+      header_layout: 'welcome_left_widgets_right',
       wifi_ssid: 'Fasano-Guest',
       wifi_password: 'fasanobemvindo',
-      show_clock: true,
-      show_weather: true,
-      weather_city: 'São Paulo',
+      wifi_qr_size: 110,
       auto_hide_dock: true,
       auto_hide_seconds: 15,
       volume_limit: 80,
@@ -81,12 +96,19 @@ export default function GroupsView({
     setFormShortcuts(group.selected_shortcuts || []);
     setFormCustomSettings({
       welcome_title: group.custom_settings?.welcome_title || 'Seja Bem-vindo(a)!',
-      welcome_subtitle: group.custom_settings?.welcome_subtitle || 'Aproveite a sua estadia.',
+      welcome_subtitle: group.custom_settings?.welcome_subtitle || 'Aproveite a sua estadia com o melhor do entretenimento.',
+      title_font_size: group.custom_settings?.title_font_size || 32,
+      show_clock: group.custom_settings?.show_clock ?? true,
+      clock_font_size: group.custom_settings?.clock_font_size || 24,
+      show_weather: group.custom_settings?.show_weather ?? true,
+      weather_city: group.custom_settings?.weather_city || 'Salvador',
+      weather_temp: group.custom_settings?.weather_temp || '28°C',
+      weather_condition: group.custom_settings?.weather_condition || 'sunny',
+      dock_icon_size: group.custom_settings?.dock_icon_size || 72,
+      header_layout: group.custom_settings?.header_layout || 'welcome_left_widgets_right',
       wifi_ssid: group.custom_settings?.wifi_ssid || '',
       wifi_password: group.custom_settings?.wifi_password || '',
-      show_clock: group.custom_settings?.show_clock ?? true,
-      show_weather: group.custom_settings?.show_weather ?? true,
-      weather_city: group.custom_settings?.weather_city || 'São Paulo',
+      wifi_qr_size: group.custom_settings?.wifi_qr_size || 110,
       auto_hide_dock: group.custom_settings?.auto_hide_dock ?? true,
       auto_hide_seconds: group.custom_settings?.auto_hide_seconds || 15,
       volume_limit: group.custom_settings?.volume_limit || 80,
@@ -584,13 +606,15 @@ export default function GroupsView({
                   </div>
 
                   <div>
-                    <label className="form-label">Cidade do Clima</label>
+                    <label className="form-label">Tamanho do QR Code (se houver)</label>
                     <input 
-                      type="text" 
+                      type="number"
+                      min="50"
+                      max="220"
                       className="form-control" 
-                      value={formCustomSettings.weather_city || ''} 
-                      onChange={e => setFormCustomSettings({ ...formCustomSettings, weather_city: e.target.value })} 
-                      placeholder="Ex: Salvador ou São Paulo"
+                      value={formCustomSettings.wifi_qr_size || 110} 
+                      onChange={e => setFormCustomSettings({ ...formCustomSettings, wifi_qr_size: parseInt(e.target.value) || 110 })} 
+                      placeholder="110"
                     />
                   </div>
                 </div>
@@ -607,6 +631,293 @@ export default function GroupsView({
                   <small style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
                     Se a TV tiver hóspede vinculado pelo PMS IFC8, ela personalizará automaticamente com o nome dele.
                   </small>
+                </div>
+
+                {/* PAINEL DE AJUSTE DE TAMANHOS, POSIÇÕES & WIDGETS DO GRUPO */}
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%)',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  borderRadius: 14, padding: 16, marginTop: 6
+                }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#93c5fd', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Sparkles size={16} color="#60a5fa" /> Padrão de Tamanhos, Posições & Widgets das TVs
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: 14 }}>
+                    Todas as TVs vinculadas a este grupo herdarão estes tamanhos e widgets automaticamente, mantendo a identidade visual do hotel.
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {/* 1. Tamanho dos Ícones da Dock */}
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <label className="form-label" style={{ margin: 0, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6, color: '#60a5fa' }}>
+                          <Tv size={14} /> Tamanho dos Ícones da Dock (Menu de Apps)
+                        </label>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#60a5fa', background: 'rgba(59, 130, 246, 0.15)', padding: '2px 8px', borderRadius: 6 }}>
+                          {formCustomSettings.dock_icon_size || 72} px
+                        </span>
+                      </div>
+
+                      <input 
+                        type="range"
+                        min="48"
+                        max="110"
+                        step="4"
+                        value={formCustomSettings.dock_icon_size || 72}
+                        onChange={e => setFormCustomSettings({ ...formCustomSettings, dock_icon_size: parseInt(e.target.value) })}
+                        style={{ width: '100%', accentColor: '#3b82f6', cursor: 'pointer' }}
+                      />
+
+                      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                        {[
+                          { label: 'Pequeno', size: 56 },
+                          { label: 'Médio (Padrão)', size: 72 },
+                          { label: 'Grande', size: 90 },
+                          { label: 'Gigante', size: 108 }
+                        ].map(preset => (
+                          <button
+                            key={preset.size}
+                            type="button"
+                            onClick={() => setFormCustomSettings({ ...formCustomSettings, dock_icon_size: preset.size })}
+                            style={{
+                              padding: '3px 8px', fontSize: '0.72rem', borderRadius: 6, cursor: 'pointer',
+                              background: (formCustomSettings.dock_icon_size || 72) === preset.size ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                              border: (formCustomSettings.dock_icon_size || 72) === preset.size ? '1px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
+                              color: (formCustomSettings.dock_icon_size || 72) === preset.size ? '#60a5fa' : '#94a3b8'
+                            }}
+                          >
+                            {preset.label} ({preset.size}px)
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 2. Tamanho da Mensagem na Tela */}
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <label className="form-label" style={{ margin: 0, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6, color: '#f59e0b' }}>
+                          <Type size={14} /> Tamanho da Mensagem / Título na Tela
+                        </label>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.15)', padding: '2px 8px', borderRadius: 6 }}>
+                          {formCustomSettings.title_font_size || 32} sp / px
+                        </span>
+                      </div>
+
+                      <input 
+                        type="range"
+                        min="18"
+                        max="54"
+                        step="2"
+                        value={formCustomSettings.title_font_size || 32}
+                        onChange={e => setFormCustomSettings({ ...formCustomSettings, title_font_size: parseInt(e.target.value) })}
+                        style={{ width: '100%', accentColor: '#f59e0b', cursor: 'pointer' }}
+                      />
+
+                      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                        {[
+                          { label: 'Compacto', size: 22 },
+                          { label: 'Normal (Padrão)', size: 32 },
+                          { label: 'Grande', size: 38 },
+                          { label: 'Destaque', size: 48 }
+                        ].map(preset => (
+                          <button
+                            key={preset.size}
+                            type="button"
+                            onClick={() => setFormCustomSettings({ ...formCustomSettings, title_font_size: preset.size })}
+                            style={{
+                              padding: '3px 8px', fontSize: '0.72rem', borderRadius: 6, cursor: 'pointer',
+                              background: (formCustomSettings.title_font_size || 32) === preset.size ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                              border: (formCustomSettings.title_font_size || 32) === preset.size ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.08)',
+                              color: (formCustomSettings.title_font_size || 32) === preset.size ? '#f59e0b' : '#94a3b8'
+                            }}
+                          >
+                            {preset.label} ({preset.size}px)
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 3. Relógio Digital & Tamanho */}
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Clock size={15} color="#38bdf8" />
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff' }}>Relógio Digital no Topo</span>
+                        </div>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.78rem', color: '#fff' }}>
+                          <input 
+                            type="checkbox"
+                            checked={formCustomSettings.show_clock !== false}
+                            onChange={e => setFormCustomSettings({ ...formCustomSettings, show_clock: e.target.checked })}
+                            style={{ accentColor: '#38bdf8' }}
+                          />
+                          <span>Exibir Relógio</span>
+                        </label>
+                      </div>
+
+                      {formCustomSettings.show_clock !== false && (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 4 }}>
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Tamanho da Fonte do Relógio</span>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#38bdf8' }}>{formCustomSettings.clock_font_size || 24} sp</span>
+                          </div>
+
+                          <input 
+                            type="range"
+                            min="16"
+                            max="46"
+                            step="2"
+                            value={formCustomSettings.clock_font_size || 24}
+                            onChange={e => setFormCustomSettings({ ...formCustomSettings, clock_font_size: parseInt(e.target.value) })}
+                            style={{ width: '100%', accentColor: '#38bdf8', cursor: 'pointer' }}
+                          />
+
+                          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                            {[
+                              { label: 'Compacto', size: 18 },
+                              { label: 'Normal', size: 24 },
+                              { label: 'Grande', size: 32 },
+                              { label: 'Destaque', size: 40 }
+                            ].map(preset => (
+                              <button
+                                key={preset.size}
+                                type="button"
+                                onClick={() => setFormCustomSettings({ ...formCustomSettings, clock_font_size: preset.size })}
+                                style={{
+                                  padding: '3px 8px', fontSize: '0.72rem', borderRadius: 6, cursor: 'pointer',
+                                  background: (formCustomSettings.clock_font_size || 24) === preset.size ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                                  border: (formCustomSettings.clock_font_size || 24) === preset.size ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                                  color: (formCustomSettings.clock_font_size || 24) === preset.size ? '#38bdf8' : '#94a3b8'
+                                }}
+                              >
+                                {preset.label} ({preset.size}px)
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* 4. Widget de Previsão do Tempo */}
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Sun size={16} color="#fbbf24" />
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff' }}>Widget de Previsão do Tempo</span>
+                        </div>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.78rem', color: '#fff' }}>
+                          <input 
+                            type="checkbox"
+                            checked={formCustomSettings.show_weather !== false}
+                            onChange={e => setFormCustomSettings({ ...formCustomSettings, show_weather: e.target.checked })}
+                            style={{ accentColor: '#fbbf24' }}
+                          />
+                          <span>Exibir Previsão</span>
+                        </label>
+                      </div>
+
+                      {formCustomSettings.show_weather !== false && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div>
+                              <label className="form-label" style={{ fontSize: '0.74rem' }}>Cidade</label>
+                              <input 
+                                type="text"
+                                className="form-control"
+                                value={formCustomSettings.weather_city || 'Salvador'}
+                                onChange={e => setFormCustomSettings({ ...formCustomSettings, weather_city: e.target.value })}
+                                placeholder="Ex: Salvador ou São Paulo"
+                                style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="form-label" style={{ fontSize: '0.74rem' }}>Temperatura de Exibição</label>
+                              <input 
+                                type="text"
+                                className="form-control"
+                                value={formCustomSettings.weather_temp || '28°C'}
+                                onChange={e => setFormCustomSettings({ ...formCustomSettings, weather_temp: e.target.value })}
+                                placeholder="Ex: 28°C"
+                                style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 6 }}>Condição Climática / Ícone na TV</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 6 }}>
+                              {[
+                                { id: 'sunny', label: 'Ensolarado', icon: Sun, color: '#fbbf24' },
+                                { id: 'partly_cloudy', label: 'Parc. Nublado', icon: CloudSun, color: '#60a5fa' },
+                                { id: 'cloudy', label: 'Nublado', icon: Cloud, color: '#94a3b8' },
+                                { id: 'rain', label: 'Chuvoso', icon: CloudRain, color: '#38bdf8' },
+                                { id: 'clear_night', label: 'Noite Limpa', icon: Moon, color: '#c084fc' }
+                              ].map(cond => {
+                                const IconComponent = cond.icon;
+                                const isSel = (formCustomSettings.weather_condition || 'sunny') === cond.id;
+                                return (
+                                  <button
+                                    key={cond.id}
+                                    type="button"
+                                    onClick={() => setFormCustomSettings({ ...formCustomSettings, weather_condition: cond.id })}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                      padding: '6px 8px', borderRadius: 8, cursor: 'pointer',
+                                      background: isSel ? 'rgba(251, 191, 36, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                                      border: isSel ? '1px solid #fbbf24' : '1px solid rgba(255, 255, 255, 0.08)',
+                                      color: isSel ? '#fbbf24' : '#94a3b8', fontSize: '0.72rem', fontWeight: 600
+                                    }}
+                                  >
+                                    <IconComponent size={14} color={cond.color} />
+                                    <span>{cond.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 5. Alinhamento e Posições do Topo */}
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: 8, display: 'block' }}>
+                        Alinhamento dos Elementos no Topo da TV
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => setFormCustomSettings({ ...formCustomSettings, header_layout: 'welcome_left_widgets_right' })}
+                          style={{
+                            padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
+                            background: (formCustomSettings.header_layout || 'welcome_left_widgets_right') === 'welcome_left_widgets_right' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                            border: (formCustomSettings.header_layout || 'welcome_left_widgets_right') === 'welcome_left_widgets_right' ? '1px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
+                            color: (formCustomSettings.header_layout || 'welcome_left_widgets_right') === 'welcome_left_widgets_right' ? '#60a5fa' : '#94a3b8',
+                            fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                          }}
+                        >
+                          <AlignLeft size={14} /> Mensagem ⬅️ | ➡️ Widgets
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setFormCustomSettings({ ...formCustomSettings, header_layout: 'widgets_left_welcome_right' })}
+                          style={{
+                            padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
+                            background: (formCustomSettings.header_layout || 'welcome_left_widgets_right') === 'widgets_left_welcome_right' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                            border: (formCustomSettings.header_layout || 'welcome_left_widgets_right') === 'widgets_left_welcome_right' ? '1px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.08)',
+                            color: (formCustomSettings.header_layout || 'welcome_left_widgets_right') === 'widgets_left_welcome_right' ? '#60a5fa' : '#94a3b8',
+                            fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                          }}
+                        >
+                          <AlignRight size={14} /> Widgets ⬅️ | ➡️ Mensagem
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 

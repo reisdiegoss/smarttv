@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, Activity, Wifi, CheckCircle2, AlertCircle, RefreshCw, 
   Send, User, Key, Tv, ShieldCheck, ArrowRight, Clock, Server,
-  Sparkles, Layers, CheckSquare, PlusCircle, RotateCw, Filter, Smartphone
+  Sparkles, Layers, CheckSquare, PlusCircle, RotateCw, Filter, Smartphone,
+  FileText, UploadCloud, FileSpreadsheet, FolderUp, Download, Eye, FileUp
 } from 'lucide-react';
 
 export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, fetchHeaders }) {
@@ -22,6 +23,18 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
   const [resyncing, setResyncing] = useState(false);
   const [resyncResult, setResyncResult] = useState(null);
 
+  // Estados para Carga Direta do Banco Central do Hotel
+  const [pullingHotelDb, setPullingHotelDb] = useState(false);
+  const [hotelDbResult, setHotelDbResult] = useState(null);
+
+  // Modo de Carga de UHs: 'FILE' (Importar do Opera - Recomendado), 'HOTEL_DB' (Puxar UHs já cadastradas), 'IFC8' (Sincronização Direta DR)
+  const [loadMode, setLoadMode] = useState('FILE');
+  const [operaImportLoading, setOperaImportLoading] = useState(false);
+  const [operaImportResult, setOperaImportResult] = useState(null);
+  const [operaTextContent, setOperaTextContent] = useState('');
+  const [isTextModalOpen, setIsTextModalOpen] = useState(false);
+  const fileInputRef = React.useRef(null);
+
   // Estados para Filtro da Tabela
   const [filterType, setFilterType] = useState('ALL'); // ALL, UH_ONLY, INSTITUTIONAL_ONLY
 
@@ -30,6 +43,113 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
   const [guestName, setGuestName] = useState('');
   const [actionType, setActionType] = useState('CHECK_IN');
   const [welcomeTitle, setWelcomeTitle] = useState('');
+
+  const handlePullHotelDb = async () => {
+    setPullingHotelDb(true);
+    setHotelDbResult(null);
+    try {
+      const res = await fetch('/api/pms/pull-from-hotel-db', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(fetchHeaders ? fetchHeaders() : {})
+        },
+        body: JSON.stringify({
+          group_id: batchGroupId ? parseInt(batchGroupId) : null
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Falha ao puxar UHs do banco do hotel');
+      }
+
+      const data = await res.json();
+      setHotelDbResult(data);
+      if (onRefresh) onRefresh();
+      loadStatus();
+    } catch (err) {
+      alert(`Erro: ${err.message}`);
+    } finally {
+      setPullingHotelDb(false);
+    }
+  };
+
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    if (batchGroupId) formData.append('group_id', batchGroupId);
+
+    setOperaImportLoading(true);
+    setOperaImportResult(null);
+
+    try {
+      const res = await fetch('/api/pms/import-opera-file', {
+        method: 'POST',
+        headers: fetchHeaders ? fetchHeaders() : {},
+        body: formData
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Falha ao importar arquivo do Opera');
+      }
+
+      const data = await res.json();
+      setOperaImportResult(data);
+      if (onRefresh) onRefresh();
+      loadStatus();
+    } catch (err) {
+      alert(`Erro na importação: ${err.message}`);
+    } finally {
+      setOperaImportLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleTextImport = async () => {
+    if (!operaTextContent.trim()) {
+      alert('Cole o texto ou tabela exportada do Opera.');
+      return;
+    }
+
+    setOperaImportLoading(true);
+    setOperaImportResult(null);
+
+    try {
+      const res = await fetch('/api/pms/import-opera-text', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(fetchHeaders ? fetchHeaders() : {})
+        },
+        body: JSON.stringify({
+          content: operaTextContent.trim(),
+          group_id: batchGroupId ? parseInt(batchGroupId) : null
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Falha ao importar dados');
+      }
+
+      const data = await res.json();
+      setOperaImportResult(data);
+      setIsTextModalOpen(false);
+      setOperaTextContent('');
+      if (onRefresh) onRefresh();
+      loadStatus();
+    } catch (err) {
+      alert(`Erro na importação: ${err.message}`);
+    } finally {
+      setOperaImportLoading(false);
+    }
+  };
 
   const loadStatus = async () => {
     try {
@@ -449,125 +569,322 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
         </div>
       )}
 
-      {/* SEÇÃO 1: CARGA INICIAL EM LOTE DE UHs (ASSISTENTE PARA INSTALAÇÃO DO APK) */}
+      {/* SEÇÃO 1: CARGA DE UHs (IMPORTAÇÃO AUTOMÁTICA SEM ERROS DE DIGITAÇÃO) */}
       <div style={{
-        background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.25) 0%, rgba(15, 23, 42, 0.4) 100%)',
+        background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.28) 0%, rgba(15, 23, 42, 0.45) 100%)',
         border: '1px solid rgba(59, 130, 246, 0.35)',
         borderRadius: 16,
         padding: 22,
         marginBottom: 24,
         boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
           <div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#fff', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#fff', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
               <Sparkles size={20} color="#60a5fa" />
-              Carga Inicial & Gerador de UHs em Lote (Quartos)
+              Carga Automática de UHs (Zero Digitação Manual)
             </h3>
-            <p style={{ color: '#94a3b8', fontSize: '0.86rem', margin: 0, maxWidth: 800 }}>
-              Cadastre previamente todas as UHs do hotel para que os técnicos já encontrem as TVs prontas no painel ao instalar o APK em cada quarto. O Opera PMS atualizará os hóspedes de cada UH automaticamente assim que houver check-in.
+            <p style={{ color: '#94a3b8', fontSize: '0.86rem', margin: 0, maxWidth: 820 }}>
+              Puxa todas as informações oficiais que <strong>já existem</strong> no Opera PMS ou no sistema central do hotel, trazendo as UHs, categorias e hóspedes automaticamente para evitar qualquer erro humano.
             </p>
           </div>
 
-          <div style={{
-            background: 'rgba(59, 130, 246, 0.15)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            borderRadius: 8,
-            padding: '6px 12px',
-            fontSize: '0.78rem',
-            color: '#93c5fd',
-            fontWeight: 600
-          }}>
-            Código Prévio: UH-0101
+          {/* Seletor de Modo de Carga */}
+          <div style={{ display: 'flex', gap: 6, background: 'rgba(15, 23, 42, 0.6)', padding: 4, borderRadius: 10, border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <button
+              type="button"
+              onClick={() => setLoadMode('FILE')}
+              style={{
+                padding: '6px 14px', fontSize: '0.8rem', borderRadius: 8, cursor: 'pointer',
+                background: loadMode === 'FILE' ? '#3b82f6' : 'transparent',
+                color: loadMode === 'FILE' ? '#fff' : '#94a3b8',
+                border: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6
+              }}
+            >
+              <FileSpreadsheet size={15} /> 1. Importar Relatório Opera (Recomendado)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLoadMode('HOTEL_DB')}
+              style={{
+                padding: '6px 14px', fontSize: '0.8rem', borderRadius: 8, cursor: 'pointer',
+                background: loadMode === 'HOTEL_DB' ? '#3b82f6' : 'transparent',
+                color: loadMode === 'HOTEL_DB' ? '#fff' : '#94a3b8',
+                border: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6
+              }}
+            >
+              <Building2 size={15} /> 2. Puxar do Sistema do Hotel (TIHFSA)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLoadMode('IFC8')}
+              style={{
+                padding: '6px 14px', fontSize: '0.8rem', borderRadius: 8, cursor: 'pointer',
+                background: loadMode === 'IFC8' ? '#3b82f6' : 'transparent',
+                color: loadMode === 'IFC8' ? '#fff' : '#94a3b8',
+                border: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6
+              }}
+            >
+              <RotateCw size={15} /> 3. Resync Socket IFC8
+            </button>
           </div>
         </div>
 
-        <form onSubmit={handleBatchCreateUHs} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 12, alignItems: 'end', marginTop: 16 }}>
-          <div>
-            <label className="form-label" style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
-              Faixas de Quartos / UHs (Separadas por vírgula ou hífen) *
-            </label>
-            <input 
-              type="text" 
-              className="form-control" 
-              value={batchRanges}
-              onChange={e => setBatchRanges(e.target.value)}
-              placeholder="Ex: 101-125, 201-225, 301-315"
-              required
-              style={{ background: 'rgba(15, 23, 42, 0.7)', borderColor: 'rgba(59, 130, 246, 0.4)', color: '#fff' }}
-            />
-            <small style={{ color: '#94a3b8', fontSize: '0.72rem', display: 'block', marginTop: 4 }}>
-              Exemplo: <code>101-125</code> cria automaticamente do 101 ao 125.
-            </small>
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
-              Grupo / Perfil Herdado
-            </label>
-            <select
-              className="form-control"
-              value={batchGroupId}
-              onChange={e => setBatchGroupId(e.target.value)}
-              style={{ background: 'rgba(15, 23, 42, 0.7)', borderColor: 'rgba(59, 130, 246, 0.4)', color: '#fff' }}
-            >
-              <option value="">TV Quartos (Padrão)</option>
-              {groups.map(g => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
-              Prefixo do Nome
-            </label>
-            <input 
-              type="text" 
-              className="form-control" 
-              value={batchPrefix}
-              onChange={e => setBatchPrefix(e.target.value)}
-              placeholder="Quarto"
-              style={{ background: 'rgba(15, 23, 42, 0.7)', borderColor: 'rgba(59, 130, 246, 0.4)', color: '#fff' }}
-            />
-          </div>
-
-          <div>
-            <button 
-              type="submit" 
-              className="btn btn-primary"
-              disabled={batchGenerating}
-              style={{ height: 40, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, padding: '0 18px', background: '#3b82f6' }}
-            >
-              <PlusCircle size={16} />
-              {batchGenerating ? 'Gerando UHs...' : 'Gerar TVs das UHs'}
-            </button>
-          </div>
-        </form>
-
-        {batchResult && (
+        {/* MODO 1: IMPORTAÇÃO DO ARQUIVO OFICIAL EXPORTADO DO OPERA */}
+        {loadMode === 'FILE' && (
           <div style={{
-            marginTop: 16,
-            padding: '12px 16px',
-            borderRadius: 10,
-            background: 'rgba(16, 185, 129, 0.15)',
-            border: '1px solid #10b981',
-            fontSize: '0.85rem'
+            background: 'rgba(15, 23, 42, 0.5)',
+            border: '1px dashed rgba(59, 130, 246, 0.4)',
+            borderRadius: 14,
+            padding: 20,
+            marginTop: 10
           }}>
-            <div style={{ fontWeight: 600, color: '#34d399', marginBottom: 4 }}>
-              ✓ {batchResult.message}
+            <input 
+              type="file" 
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".csv,.txt,.tsv,.xlsx"
+              style={{ display: 'none' }}
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 20, alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#fff', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FolderUp size={18} color="#60a5fa" />
+                  Carregue o Relatório Oficial Exportado do Opera PMS
+                </div>
+                <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: '0 0 12px 0' }}>
+                  Basta exportar do Opera o relatório <strong>"Room Status"</strong>, <strong>"Room List"</strong> ou <strong>"Guest In-House"</strong> e carregar aqui. O sistema extrai todos os quartos, vincula aos grupos certos (ex: Standard, Vista Mar) e cadastra os hóspedes sem digitação.
+                </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'block', marginBottom: 4 }}>
+                      Grupo Padrão para os Quartos
+                    </label>
+                    <select
+                      className="form-control"
+                      value={batchGroupId}
+                      onChange={e => setBatchGroupId(e.target.value)}
+                      style={{ background: 'rgba(15, 23, 42, 0.8)', borderColor: 'rgba(59, 130, 246, 0.4)', color: '#fff', fontSize: '0.8rem', padding: '6px 12px' }}
+                    >
+                      <option value="">TV Quartos (Padrão)</option>
+                      {groups.map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={operaImportLoading}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 22px', fontSize: '0.88rem', fontWeight: 600, background: '#3b82f6' }}
+                >
+                  <UploadCloud size={18} />
+                  {operaImportLoading ? 'Importando do Opera...' : 'Carregar Arquivo do Opera'}
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setIsTextModalOpen(true)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: '0.8rem' }}
+                >
+                  <FileText size={14} /> Colar Tabela do Opera em Texto
+                </button>
+              </div>
             </div>
-            {batchResult.created_rooms.length > 0 && (
-              <div style={{ fontSize: '0.78rem', color: '#cbd5e1', marginTop: 4 }}>
-                <strong>Criadas agora ({batchResult.created_count}):</strong> {batchResult.created_rooms.slice(0, 30).join(', ')}
-                {batchResult.created_rooms.length > 30 ? ` ... e mais ${batchResult.created_rooms.length - 30} quartos` : ''}
+
+            {/* Resultado da Importação do Opera */}
+            {operaImportResult && (
+              <div style={{
+                marginTop: 16,
+                padding: '14px 18px',
+                borderRadius: 10,
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid #10b981',
+                fontSize: '0.86rem'
+              }}>
+                <div style={{ fontWeight: 700, color: '#34d399', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <CheckCircle2 size={18} />
+                  {operaImportResult.message}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                  Total detectado: <strong>{operaImportResult.total_detected} UHs</strong> • Criadas: <strong>{operaImportResult.created_count}</strong> • Atualizadas: <strong>{operaImportResult.updated_count}</strong>
+                </div>
+                {operaImportResult.samples?.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {operaImportResult.samples.map((s, idx) => (
+                      <span key={idx} style={{
+                        background: 'rgba(255,255,255,0.08)', padding: '2px 8px', borderRadius: 6, fontSize: '0.74rem', color: '#fff'
+                      }}>
+                        UH {s.uh} {s.guest ? `(${s.guest})` : ''} - {s.group}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-            {batchResult.existing_rooms.length > 0 && (
-              <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: 2 }}>
-                <strong>Já existentes ({batchResult.already_exists_count}):</strong> {batchResult.existing_rooms.slice(0, 20).join(', ')}
+          </div>
+        )}
+
+        {/* MODO 2: PUXAR DIRETO DO BANCO DE DADOS CENTRAL DO HOTEL (TIHFSA) */}
+        {loadMode === 'HOTEL_DB' && (
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.5)',
+            border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: 14,
+            padding: 20,
+            marginTop: 10
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h4 style={{ color: '#fff', margin: '0 0 6px 0', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Building2 size={18} color="#60a5fa" />
+                  Importar UHs do Banco Central do Fasano Salvador
+                </h4>
+                <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: '0 0 10px 0', maxWidth: 680 }}>
+                  Conecta instantaneamente à base de dados central de infraestrutura do Fasano (PostgreSQL em <code>192.168.168.26</code>) e importa todas as UHs oficiais já cadastradas, gerando os códigos de pareamento (ex: <code>UH-0101</code>) sem nenhum risco de digitação.
+                </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'block', marginBottom: 4 }}>
+                      Vincular ao Grupo
+                    </label>
+                    <select
+                      className="form-control"
+                      value={batchGroupId}
+                      onChange={e => setBatchGroupId(e.target.value)}
+                      style={{ background: 'rgba(15, 23, 42, 0.8)', borderColor: 'rgba(59, 130, 246, 0.4)', color: '#fff', fontSize: '0.8rem', padding: '6px 12px' }}
+                    >
+                      <option value="">TV Quartos (Padrão)</option>
+                      {groups.map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handlePullHotelDb}
+                  disabled={pullingHotelDb}
+                  style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 8, background: '#10b981', fontWeight: 600, fontSize: '0.9rem' }}
+                >
+                  <Download size={18} />
+                  {pullingHotelDb ? 'Puxando UHs...' : 'Puxar Todas as UHs Agora'}
+                </button>
+              </div>
+            </div>
+
+            {hotelDbResult && (
+              <div style={{
+                marginTop: 16,
+                padding: '14px 18px',
+                borderRadius: 10,
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid #10b981',
+                fontSize: '0.86rem'
+              }}>
+                <div style={{ fontWeight: 700, color: '#34d399', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <CheckCircle2 size={18} />
+                  {hotelDbResult.message}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                  Total encontradas: <strong>{hotelDbResult.total_found}</strong> • Criadas nesta importação: <strong>{hotelDbResult.created_count}</strong> • Já existentes: <strong>{hotelDbResult.already_exists_count}</strong>
+                </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* MODO 3: SINCRONIZAÇÃO SOCKET DIRETA COM O OPERA IFC8 */}
+        {loadMode === 'IFC8' && (
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.5)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: 14,
+            padding: 20,
+            marginTop: 10
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h4 style={{ color: '#fff', margin: '0 0 6px 0', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <RotateCw size={16} color="#60a5fa" />
+                  Sincronização em Tempo Real via Socket FIAS (IFC8)
+                </h4>
+                <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0, maxWidth: 650 }}>
+                  Envia a solicitação de Database Resync (DR) diretamente para o servidor Opera IFC8 em <code>{pmsStatus?.host || '192.168.162.18'}:{pmsStatus?.port || 5020}</code>. O Opera descarregará todos os quartos e hóspedes ativos em streaming.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleRequestResync}
+                disabled={resyncing || !pmsStatus?.connected}
+                style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 8, background: '#2563eb' }}
+              >
+                <RotateCw size={16} className={resyncing ? 'spin' : ''} />
+                {resyncing ? 'Solicitando...' : 'Disparar Carga do Opera Agora'}
+              </button>
+            </div>
+          </div>
+        )}
+
+
+        {/* Modal para Colar Texto do Opera */}
+        {isTextModalOpen && (
+          <div className="modal-overlay" style={{ animation: 'fadeIn 0.2s ease', zIndex: 100 }}>
+            <div className="modal-content" style={{ maxWidth: 600 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FileText size={18} color="var(--primary)" />
+                  Colar Lista de Quartos / Hóspedes do Opera
+                </h3>
+                <button className="btn-icon" onClick={() => setIsTextModalOpen(false)}>✕</button>
+              </div>
+
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+                Copie a tabela ou linhas do relatório do Opera e cole abaixo. O sistema identificará automaticamente os números de quartos e hóspedes:
+              </p>
+
+              <textarea 
+                className="form-control"
+                rows={8}
+                value={operaTextContent}
+                onChange={e => setOperaTextContent(e.target.value)}
+                placeholder={`Exemplo de linhas do Opera:\n101, Standard, Ocupado, Diego Reis\n102, Standard, Vago\n201, Vista Mar, Ocupado, João Santos`}
+                style={{ fontFamily: 'monospace', fontSize: '0.82rem', marginBottom: 16 }}
+              />
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsTextModalOpen(false)}>
+                  Cancelar
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary"
+                  onClick={handleTextImport}
+                  disabled={operaImportLoading}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <UploadCloud size={16} />
+                  {operaImportLoading ? 'Processando...' : 'Processar e Carregar UHs'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

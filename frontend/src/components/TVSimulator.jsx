@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Tv, Wifi, Clock, CloudSun, Play, Pause, Volume2, VolumeX, 
+  Tv, Wifi, Clock, CloudSun, Sun, Cloud, CloudRain, Moon, Play, Pause, Volume2, VolumeX, 
   Maximize2, Radio, Sparkles, Film, Video, PlaySquare, Music,
   ArrowRight, QrCode, MonitorPlay, ChevronLeft, ChevronRight,
   ChevronUp, ChevronDown
@@ -257,74 +257,165 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
             }} />
 
             {/* LAYOUT 1: HOTEL LUXO (DOCK FLUTUANTE) */}
-            {layoutCode === 'hotel_dock' && (
-              <div className="tv-screen-overlay" style={{ padding: '28px 36px' }}>
-                {/* Header: Room & Status */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#fff', textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>
+            {layoutCode === 'hotel_dock' && (() => {
+              const titleSizePx = Math.round((custom.title_font_size || 32) * 0.88);
+              const subtitleSizePx = Math.max(12, Math.round(titleSizePx * 0.52));
+              const clockSizePx = Math.round((custom.clock_font_size || 24) * 0.85);
+              const showClock = custom.show_clock !== false;
+              const showWeather = custom.show_weather !== false;
+              const weatherCity = custom.weather_city || 'Salvador';
+              const weatherTemp = custom.weather_temp || '28°C';
+              const weatherCond = custom.weather_condition || 'sunny';
+              const isReversedHeader = custom.header_layout === 'widgets_left_welcome_right';
+              
+              const dockBase = custom.dock_icon_size || 72;
+              const dockBtnWidth = Math.round(dockBase * 1.65);
+              const dockBtnHeight = Math.round(dockBase * 1.15);
+              const dockIconHeight = Math.round(dockBase * 0.44);
+              const dockTextSize = Math.max(11, Math.round(dockBase * 0.175));
+              const qrSizePx = Math.round((custom.wifi_qr_size || 110) * 0.42);
+
+              const getWeatherIcon = () => {
+                switch (weatherCond) {
+                  case 'sunny': return <Sun size={18} color="#fbbf24" />;
+                  case 'partly_cloudy': return <CloudSun size={18} color="#60a5fa" />;
+                  case 'cloudy': return <Cloud size={18} color="#94a3b8" />;
+                  case 'rain': return <CloudRain size={18} color="#38bdf8" />;
+                  case 'clear_night': return <Moon size={18} color="#c084fc" />;
+                  default: return <Sun size={18} color="#fbbf24" />;
+                }
+              };
+
+              return (
+              <div className="tv-screen-overlay" style={{ padding: '24px 32px' }}>
+                {/* Header: Room & Status with Dynamic Layout Direction */}
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: isReversedHeader ? 'row-reverse' : 'row',
+                  justifyContent: 'space-between', 
+                  alignItems: 'flex-start',
+                  gap: 16
+                }}>
+                  {/* Mensagem de Boas-vindas com Tamanho Dinâmico */}
+                  <div style={{ flex: 1, textAlign: isReversedHeader ? 'right' : 'left' }}>
+                    <h1 style={{ 
+                      fontSize: `${titleSizePx}px`, 
+                      fontWeight: 800, 
+                      color: '#fff', 
+                      lineHeight: 1.15,
+                      textShadow: '0 2px 10px rgba(0,0,0,0.8)',
+                      margin: 0
+                    }}>
                       {welcomeTitle}
                     </h1>
-                    <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.8)', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
+                    <p style={{ 
+                      fontSize: `${subtitleSizePx}px`, 
+                      color: 'rgba(255,255,255,0.8)', 
+                      textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+                      marginTop: 4,
+                      marginBottom: 0
+                    }}>
                       {welcomeSubtitle}
                     </p>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{
-                      background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 12,
-                      padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10
-                    }}>
-                      <Clock size={16} color="#60a5fa" />
-                      <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>{formattedTime}</span>
-                      <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)', textTransform: 'capitalize' }}>
-                        {formattedDate}
-                      </span>
-                    </div>
+                  {/* Widgets: Relógio, Clima e Wi-Fi / QR Code */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                    {/* Widget de Previsão do Tempo */}
+                    {showWeather && (
+                      <div style={{
+                        background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 12,
+                        padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                      }}>
+                        {getWeatherIcon()}
+                        <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
+                          <span style={{ fontSize: '1rem', fontWeight: 700, color: '#fff' }}>{weatherTemp}</span>
+                          <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.7)', textTransform: 'capitalize' }}>
+                            {weatherCity}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
+                    {/* Relógio Digital com Tamanho Dinâmico */}
+                    {showClock && (
+                      <div style={{
+                        background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 12,
+                        padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                      }}>
+                        <Clock size={16} color="#38bdf8" />
+                        <span style={{ fontSize: `${clockSizePx}px`, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
+                          {formattedTime}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', textTransform: 'capitalize' }}>
+                          {formattedDate}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Wi-Fi & QR Code */}
                     <div style={{
                       background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(10px)',
                       border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 12,
-                      padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8
+                      padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                     }}>
-                      <Wifi size={16} color="#34d399" />
+                      {custom.wifi_qrcode_url ? (
+                        <img 
+                          src={custom.wifi_qrcode_url} 
+                          alt="Wi-Fi QR"
+                          style={{
+                            width: qrSizePx,
+                            height: qrSizePx,
+                            borderRadius: 6,
+                            background: '#fff',
+                            padding: 2,
+                            objectFit: 'contain'
+                          }}
+                        />
+                      ) : (
+                        <Wifi size={16} color="#34d399" />
+                      )}
                       <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
                         <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fff' }}>{wifiSsid}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)' }}>Senha: {wifiPass}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.6)' }}>Senha: {wifiPass}</div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Bottom Dock */}
+                {/* Bottom Dock com Tamanho Dinâmico de Ícones */}
                 <div style={{
                   opacity: dockVisible ? 1 : 0.08,
                   transform: dockVisible ? 'translateY(0)' : 'translateY(20px)',
                   transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                  background: 'rgba(11, 16, 27, 0.8)',
+                  background: 'rgba(11, 16, 27, 0.82)',
                   backdropFilter: 'blur(20px)',
                   border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: 24,
-                  padding: '16px 24px',
+                  borderRadius: 22,
+                  padding: '12px 20px',
                   boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                       Canais & Aplicativos
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
-                      Pressione as setas ◀ ▶ do controle para navegar
+                    <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)' }}>
+                      Pressione ◀ ▶ no controle para navegar
                     </div>
                   </div>
 
                   <div style={{ 
                     display: 'flex', 
-                    gap: 16, 
+                    gap: 12, 
                     overflowX: 'auto', 
                     overflowY: 'visible',
-                    padding: '16px 12px 20px 12px',
-                    margin: '-8px -12px -10px -12px',
+                    padding: '8px 6px 12px 6px',
+                    margin: '-4px -6px -6px -6px',
                     alignItems: 'center',
                     scrollbarWidth: 'none'
                   }}>
@@ -354,18 +445,18 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                                   ? '0 0 0 2px rgba(255,255,255,0.85), 0 14px 28px rgba(0, 0, 0, 0.7), 0 0 30px rgba(239, 68, 68, 0.6)'
                                   : '0 0 0 2px rgba(255,255,255,0.85), 0 14px 28px rgba(0, 0, 0, 0.7), 0 0 30px rgba(59, 130, 246, 0.6)')
                               : '0 4px 12px rgba(0, 0, 0, 0.25)',
-                            transform: isFocused ? 'scale(1.10) translateY(-6px)' : 'scale(1)',
+                            transform: isFocused ? 'scale(1.08) translateY(-4px)' : 'scale(1)',
                             willChange: 'transform, box-shadow',
                             transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.2s ease, background 0.2s ease',
-                            borderRadius: 18,
-                            padding: '12px 16px',
-                            minWidth: 125,
-                            height: 84,
+                            borderRadius: 16,
+                            padding: '8px 12px',
+                            minWidth: dockBtnWidth,
+                            height: dockBtnHeight,
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: 8,
+                            gap: 6,
                             color: '#fff',
                             cursor: 'pointer',
                             outline: 'none',
@@ -373,7 +464,7 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                           }}
                         >
                           <div style={{
-                            height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            height: dockIconHeight, display: 'flex', alignItems: 'center', justifyContent: 'center',
                             transform: isFocused ? 'scale(1.08)' : 'scale(1)',
                             transition: 'transform 0.25s ease'
                           }}>
@@ -385,7 +476,7 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                             />
                           </div>
                           <span style={{ 
-                            fontSize: '0.85rem', 
+                            fontSize: `${dockTextSize}px`, 
                             fontWeight: isFocused ? 700 : 600, 
                             whiteSpace: 'nowrap',
                             color: isFocused ? '#ffffff' : 'rgba(255, 255, 255, 0.85)',
@@ -399,7 +490,8 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                   </div>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* LAYOUT 2: SPLIT SCREEN (70% VIDEO / 30% SIDEBAR) */}
             {layoutCode === 'split_sidebar' && (
