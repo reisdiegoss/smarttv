@@ -40,10 +40,8 @@ local.properties
 
 # Environment and uploads
 .env
-uploads/videos/*.mp4
-uploads/videos/*.mkv
-uploads/videos/*.webm
-!uploads/videos/demo_nature_4k.mp4
+uploads/
+backend/uploads/
 
 # IDE / OS
 .idea/
