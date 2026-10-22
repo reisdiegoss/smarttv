@@ -119,13 +119,23 @@ class TVGroupUpdate(BaseModel):
     selected_shortcuts: Optional[List[int]] = None
     custom_settings: Optional[Dict[str, Any]] = None
 
+class PlaylistSimpleOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    is_active: bool = True
+    loop_playback: bool = True
+
+    class Config:
+        from_attributes = True
+
 class TVGroupOut(TVGroupBase):
     id: int
     created_at: datetime
     updated_at: datetime
     tv_count: Optional[int] = 0
     layout: Optional[LayoutPresetOut] = None
-    playlist: Optional[PlaylistOut] = None
+    playlist: Optional[PlaylistSimpleOut] = None
 
     class Config:
         from_attributes = True
