@@ -147,9 +147,9 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
         tv.name = payload.name
     if payload.room_group is not None:
         tv.room_group = payload.room_group
-    if payload.layout_id is not None:
+    if "layout_id" in payload.model_fields_set:
         tv.layout_id = payload.layout_id
-    if payload.playlist_id is not None:
+    if "playlist_id" in payload.model_fields_set:
         tv.playlist_id = payload.playlist_id
     if payload.hdmi_input_id is not None:
         tv.hdmi_input_id = payload.hdmi_input_id

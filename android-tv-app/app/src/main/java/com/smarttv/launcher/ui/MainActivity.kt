@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -52,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ivWifiQrCode: ImageView
     private lateinit var tvWifiSsid: TextView
     private lateinit var tvWifiPass: TextView
+    private lateinit var containerWifiText: View
     private lateinit var layoutDock: View
     private lateinit var containerShortcuts: LinearLayout
 
@@ -64,6 +66,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ivSidebarQrCode: ImageView
     private lateinit var tvSidebarWifiSsid: TextView
     private lateinit var tvSidebarWifiPass: TextView
+    private lateinit var containerSidebarWifiText: View
     private lateinit var containerSidebarShortcuts: LinearLayout
 
     // Layout Ticker Marquee (Digital Mural)
@@ -119,6 +122,7 @@ class MainActivity : AppCompatActivity() {
         ivWifiQrCode = findViewById(R.id.ivWifiQrCode)
         tvWifiSsid = findViewById(R.id.tvWifiSsid)
         tvWifiPass = findViewById(R.id.tvWifiPass)
+        containerWifiText = findViewById(R.id.containerWifiText)
         layoutDock = findViewById(R.id.layoutDock)
         containerShortcuts = findViewById(R.id.containerShortcuts)
 
@@ -131,6 +135,7 @@ class MainActivity : AppCompatActivity() {
         ivSidebarQrCode = findViewById(R.id.ivSidebarQrCode)
         tvSidebarWifiSsid = findViewById(R.id.tvSidebarWifiSsid)
         tvSidebarWifiPass = findViewById(R.id.tvSidebarWifiPass)
+        containerSidebarWifiText = findViewById(R.id.containerSidebarWifiText)
         containerSidebarShortcuts = findViewById(R.id.containerSidebarShortcuts)
 
         // Elementos do Mural Ticker
@@ -573,7 +578,7 @@ class MainActivity : AppCompatActivity() {
                         tvId = tv.id,
                         deviceId = deviceId,
                         ipAddress = null,
-                        appVersion = "1.0.2"
+                        appVersion = "1.0.3"
                     )
                 )
 
@@ -608,7 +613,7 @@ class MainActivity : AppCompatActivity() {
                             PingRequest(
                                 deviceId = deviceId,
                                 ipAddress = null,
-                                appVersion = "1.0.2"
+                                appVersion = "1.0.3"
                             )
                         )
                         val isPaired = (response["is_paired"] as? Boolean) ?: false
@@ -671,11 +676,48 @@ class MainActivity : AppCompatActivity() {
         val custom = config.customSettings ?: emptyMap()
         tvTitle.text = (custom["welcome_title"] as? String) ?: "Bem-vindo ao ${config.name}"
         tvSubtitle.text = (custom["welcome_subtitle"] as? String) ?: "Aproveite a sua estadia com conforto e entretenimento."
-        tvWifiSsid.text = (custom["wifi_ssid"] as? String) ?: "Wi-Fi Hotel"
-        tvWifiPass.text = "Senha: " + ((custom["wifi_password"] as? String) ?: "")
 
-        // 2. Carrega imagem do QR Code do Wi-Fi
+        val wifiSsid = (custom["wifi_ssid"] as? String)?.trim() ?: ""
+        val wifiPass = (custom["wifi_password"] as? String)?.trim() ?: ""
+
+        if (wifiSsid.isNotEmpty()) {
+            tvWifiSsid.text = wifiSsid
+            tvWifiSsid.visibility = View.VISIBLE
+        } else {
+            tvWifiSsid.visibility = View.GONE
+        }
+
+        if (wifiPass.isNotEmpty()) {
+            tvWifiPass.text = "Senha: $wifiPass"
+            tvWifiPass.visibility = View.VISIBLE
+        } else {
+            tvWifiPass.visibility = View.GONE
+        }
+
+        val hasQr = !((custom["wifi_qrcode_url"] as? String)?.trim().isNullOrEmpty())
+        if (wifiSsid.isEmpty() && wifiPass.isEmpty()) {
+            containerWifiText.visibility = View.GONE
+            (ivWifiQrCode.layoutParams as? ViewGroup.MarginLayoutParams)?.let {
+                it.marginEnd = 0
+                ivWifiQrCode.layoutParams = it
+            }
+        } else {
+            containerWifiText.visibility = View.VISIBLE
+            (ivWifiQrCode.layoutParams as? ViewGroup.MarginLayoutParams)?.let {
+                it.marginEnd = dpToPx(10)
+                ivWifiQrCode.layoutParams = it
+            }
+        }
+
+        // 2. Carrega imagem do QR Code do Wi-Fi com tamanho dinâmico
         loadWifiQrCode(custom)
+
+        val showWifi = (custom["show_wifi"] as? Boolean) ?: true
+        if (!showWifi || (wifiSsid.isEmpty() && wifiPass.isEmpty() && !hasQr)) {
+            cardWifi.visibility = View.GONE
+        } else {
+            cardWifi.visibility = View.VISIBLE
+        }
 
         // 3. Aplica o Modelo de Layout Dinâmico
         applyLayout(config)
@@ -696,6 +738,11 @@ class MainActivity : AppCompatActivity() {
     private fun applyLayout(config: TVConfigResponse) {
         val layoutCode = config.layout?.code ?: "hotel_dock"
         val layoutConfig = config.layout?.config ?: emptyMap()
+        val custom = config.customSettings ?: emptyMap()
+        val wifiSsid = (custom["wifi_ssid"] as? String)?.trim() ?: ""
+        val wifiPass = (custom["wifi_password"] as? String)?.trim() ?: ""
+        val hasQr = !((custom["wifi_qrcode_url"] as? String)?.trim().isNullOrEmpty())
+        val showWifi = (custom["show_wifi"] as? Boolean) ?: true
 
         // Reseta visibilidade dos componentes
         layoutSidebar.visibility = View.GONE
@@ -721,8 +768,40 @@ class MainActivity : AppCompatActivity() {
                 tvSidebarTitle.text = tvTitle.text
                 tvSidebarSubtitle.text = tvSubtitle.text
                 tvSidebarTime.text = tvTime.text
-                tvSidebarWifiSsid.text = tvWifiSsid.text
-                tvSidebarWifiPass.text = tvWifiPass.text
+
+                if (wifiSsid.isNotEmpty()) {
+                    tvSidebarWifiSsid.text = wifiSsid
+                    tvSidebarWifiSsid.visibility = View.VISIBLE
+                } else {
+                    tvSidebarWifiSsid.visibility = View.GONE
+                }
+
+                if (wifiPass.isNotEmpty()) {
+                    tvSidebarWifiPass.text = "Senha: $wifiPass"
+                    tvSidebarWifiPass.visibility = View.VISIBLE
+                } else {
+                    tvSidebarWifiPass.visibility = View.GONE
+                }
+
+                if (wifiSsid.isEmpty() && wifiPass.isEmpty()) {
+                    containerSidebarWifiText.visibility = View.GONE
+                    (ivSidebarQrCode.layoutParams as? ViewGroup.MarginLayoutParams)?.let {
+                        it.marginEnd = 0
+                        ivSidebarQrCode.layoutParams = it
+                    }
+                } else {
+                    containerSidebarWifiText.visibility = View.VISIBLE
+                    (ivSidebarQrCode.layoutParams as? ViewGroup.MarginLayoutParams)?.let {
+                        it.marginEnd = dpToPx(12)
+                        ivSidebarQrCode.layoutParams = it
+                    }
+                }
+
+                if (!showWifi || (wifiSsid.isEmpty() && wifiPass.isEmpty() && !hasQr)) {
+                    sidebarCardWifi.visibility = View.GONE
+                } else {
+                    sidebarCardWifi.visibility = View.VISIBLE
+                }
 
                 populateSidebarShortcuts(config)
             }
@@ -755,7 +834,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Carrega imagem do QR Code de Wi-Fi se configurada no painel
+     * Carrega imagem do QR Code de Wi-Fi se configurada no painel com tamanho ajustável
      */
     private fun loadWifiQrCode(custom: Map<String, Any>) {
         val qrUrl = custom["wifi_qrcode_url"] as? String
@@ -763,10 +842,26 @@ class MainActivity : AppCompatActivity() {
             val serverUrl = SmartTVApp.instance.getServerUrl().removeSuffix("/")
             val fullUrl = if (qrUrl.startsWith("http")) qrUrl else "$serverUrl$qrUrl"
 
+            // Tamanho customizado do QR Code (default 120dp, min 48dp, max 260dp)
+            val qrSizeDp = when (val s = custom["wifi_qr_size"]) {
+                is Number -> s.toInt().coerceIn(48, 260)
+                is String -> (s.toIntOrNull() ?: 120).coerceIn(48, 260)
+                else -> 120
+            }
+            val qrSizePx = dpToPx(qrSizeDp)
+
             ivWifiQrCode.visibility = View.VISIBLE
+            val lp = ivWifiQrCode.layoutParams
+            lp.width = qrSizePx
+            lp.height = qrSizePx
+            ivWifiQrCode.layoutParams = lp
             ivWifiQrCode.load(fullUrl)
 
             ivSidebarQrCode.visibility = View.VISIBLE
+            val sideLp = ivSidebarQrCode.layoutParams
+            sideLp.width = qrSizePx
+            sideLp.height = qrSizePx
+            ivSidebarQrCode.layoutParams = sideLp
             ivSidebarQrCode.load(fullUrl)
         } else {
             ivWifiQrCode.visibility = View.GONE
@@ -775,9 +870,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupPlaylist(config: TVConfigResponse) {
-        val playlist = config.playlist ?: return
-        if (playlist.items.isEmpty()) return
+        val playlist = config.playlist
+        if (playlist == null || playlist.items.isEmpty()) {
+            exoPlayer?.stop()
+            exoPlayer?.clearMediaItems()
+            playerView.visibility = View.GONE
+            return
+        }
 
+        playerView.visibility = View.VISIBLE
         exoPlayer?.clearMediaItems()
         val serverUrl = SmartTVApp.instance.getServerUrl().removeSuffix("/")
 
@@ -786,6 +887,7 @@ class MainActivity : AppCompatActivity() {
             val mediaItem = MediaItem.fromUri(fullUrl)
             exoPlayer?.addMediaItem(mediaItem)
         }
+        exoPlayer?.repeatMode = if (playlist.loopPlayback) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
         exoPlayer?.prepare()
         exoPlayer?.play()
     }
@@ -913,8 +1015,19 @@ class MainActivity : AppCompatActivity() {
         val layoutCode = config?.layout?.code ?: "hotel_dock"
         if (layoutCode == "split_sidebar") return // Sidebar permanece visível
 
-        val timeoutSeconds = when (layoutCode) {
-            "clean_minimal" -> 5000L
+        val custom = config?.customSettings ?: emptyMap()
+        val autoHide = custom["auto_hide_dock"] as? Boolean ?: false
+
+        // Se autoHide for false (padrão), o menu de canais e apps fica FIXO E SEMPRE VISÍVEL na tela!
+        if (!autoHide) {
+            layoutDock.visibility = View.VISIBLE
+            isDockVisible = true
+            autoHideRunnable?.let { handler.removeCallbacks(it) }
+            return
+        }
+
+        val timeoutSeconds = when (val s = custom["auto_hide_seconds"]) {
+            is Number -> s.toLong() * 1000L
             else -> 15000L
         }
 
@@ -931,6 +1044,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Se a dock estava oculta, qualquer clique no controle remoto a restaura imediatamente
+        if (!isDockVisible) {
+            layoutDock.visibility = View.VISIBLE
+            isDockVisible = true
+        }
         resetAutoHideTimer()
         return super.dispatchKeyEvent(event)
     }

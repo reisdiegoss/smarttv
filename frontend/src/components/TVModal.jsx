@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Tv, Save, CheckSquare, Square, Layers, Film, Wifi, QrCode, Upload, Trash2, Smartphone, Key } from 'lucide-react';
+import { X, Tv, Save, CheckSquare, Square, Layers, Film, Wifi, QrCode, Upload, Trash2, Smartphone, Key, Eye, Sliders } from 'lucide-react';
 
 export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlists, shortcuts }) {
   const [name, setName] = useState('');
@@ -15,10 +15,11 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
   const [customSettings, setCustomSettings] = useState({
     welcome_title: 'Seja Bem-vindo(a)!',
     welcome_subtitle: 'Aproveite o melhor do entretenimento.',
-    wifi_ssid: 'SmartTV-Guest',
-    wifi_password: 'smarttvresort',
+    wifi_ssid: '',
+    wifi_password: '',
     wifi_qrcode_url: '',
-    auto_hide_dock: true,
+    wifi_qr_size: 110,
+    auto_hide_dock: false,
     auto_hide_seconds: 15
   });
   const [uploadingQr, setUploadingQr] = useState(false);
@@ -57,7 +58,8 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
           wifi_ssid: tv.custom_settings.wifi_ssid || '',
           wifi_password: tv.custom_settings.wifi_password || '',
           wifi_qrcode_url: tv.custom_settings.wifi_qrcode_url || '',
-          auto_hide_dock: tv.custom_settings.auto_hide_dock ?? true,
+          wifi_qr_size: tv.custom_settings.wifi_qr_size || 110,
+          auto_hide_dock: tv.custom_settings.auto_hide_dock ?? false,
           auto_hide_seconds: tv.custom_settings.auto_hide_seconds || 15,
           ...tv.custom_settings
         });
@@ -66,7 +68,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
       setName('');
       setRoomGroup('Geral');
       setLayoutId(layouts[0]?.id || '');
-      setPlaylistId(playlists[0]?.id || '');
+      setPlaylistId('');
       setDeviceId('');
       setPairingCode('');
       setEnableHdmi(true);
@@ -76,10 +78,11 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
       setCustomSettings({
         welcome_title: 'Seja Bem-vindo(a)!',
         welcome_subtitle: 'Aproveite o melhor do entretenimento.',
-        wifi_ssid: 'SmartTV-Guest',
-        wifi_password: 'smarttvresort',
+        wifi_ssid: '',
+        wifi_password: '',
         wifi_qrcode_url: '',
-        auto_hide_dock: true,
+        wifi_qr_size: 110,
+        auto_hide_dock: false,
         auto_hide_seconds: 15
       });
     }
@@ -268,11 +271,38 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                   value={playlistId}
                   onChange={e => setPlaylistId(e.target.value)}
                 >
+                  <option value="">Nenhum vídeo em loop (Tela limpa / Fundo escuro)</option>
                   {playlists.map(p => (
                     <option key={p.id} value={p.id}>{p.name} ({p.items?.length || 0} vídeos)</option>
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Comportamento do Menu na TV (Sempre Visível vs Auto-ocultar) */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-subtle)',
+              borderRadius: 14, padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Eye size={15} color="#60a5fa" /> Menu de Canais & Aplicativos
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                  {customSettings.auto_hide_dock 
+                    ? `Ocultando automaticamente após ${customSettings.auto_hide_seconds || 15}s de inatividade (reaparece ao tocar no controle).` 
+                    : 'Menu fixo e sempre visível na TV (recomendado para hotel).'}
+                </div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.82rem', color: '#fff' }}>
+                <input 
+                  type="checkbox"
+                  checked={!customSettings.auto_hide_dock}
+                  onChange={e => setCustomSettings({ ...customSettings, auto_hide_dock: !e.target.checked })}
+                  style={{ width: 16, height: 16, accentColor: '#3b82f6', cursor: 'pointer' }}
+                />
+                <span>Sempre Visível</span>
+              </label>
             </div>
 
             {/* Seção 4: Entrada HDMI (Sky / Receptor) */}
@@ -491,6 +521,56 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                     </div>
                   </div>
                 </div>
+
+                {/* Ajuste do Tamanho do QR Code na TV */}
+                {customSettings.wifi_qrcode_url && (
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed rgba(255, 255, 255, 0.08)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <label className="form-label" style={{ margin: 0, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Sliders size={14} color="#34d399" /> Tamanho do QR Code na TV
+                      </label>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', padding: '2px 8px', borderRadius: 6 }}>
+                        {customSettings.wifi_qr_size || 110} px
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <input 
+                        type="range"
+                        min="50"
+                        max="220"
+                        step="10"
+                        value={customSettings.wifi_qr_size || 110}
+                        onChange={e => setCustomSettings({ ...customSettings, wifi_qr_size: parseInt(e.target.value) })}
+                        style={{ flex: 1, accentColor: '#34d399', cursor: 'pointer' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      {[
+                        { label: 'Pequeno', size: 70 },
+                        { label: 'Médio', size: 110 },
+                        { label: 'Grande', size: 150 },
+                        { label: 'Gigante', size: 190 }
+                      ].map(preset => (
+                        <button
+                          key={preset.size}
+                          type="button"
+                          onClick={() => setCustomSettings({ ...customSettings, wifi_qr_size: preset.size })}
+                          style={{
+                            padding: '4px 10px', fontSize: '0.75rem', borderRadius: 6, cursor: 'pointer',
+                            background: (customSettings.wifi_qr_size || 110) === preset.size ? 'rgba(52, 211, 153, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                            border: (customSettings.wifi_qr_size || 110) === preset.size ? '1px solid #34d399' : '1px solid rgba(255, 255, 255, 0.1)',
+                            color: (customSettings.wifi_qr_size || 110) === preset.size ? '#34d399' : '#94a3b8',
+                            fontWeight: 600
+                          }}
+                        >
+                          {preset.label} ({preset.size}px)
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
