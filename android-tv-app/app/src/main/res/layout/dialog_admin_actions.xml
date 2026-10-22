@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="520dp"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_card_dark"
+    android:orientation="vertical"
+    android:padding="28dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚙️ PAINEL DO ADMINISTRADOR"
+        android:textColor="#34D399"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.08" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="PIN verificado com sucesso. Escolha uma das ações abaixo:"
+        android:textColor="#94A3B8"
+        android:textSize="13sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:orientation="vertical">
+
+        <!-- 1. Sair do App (Voltar à tela inicial da TV) -->
+        <Button
+            android:id="@+id/btnActionExitLauncher"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_chip_button"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🏠 Sair do App (Voltar ao Launcher Original da TV)"
+            android:textColor="#EF4444"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- 2. Definir como Launcher Padrão -->
+        <Button
+            android:id="@+id/btnActionSetDefault"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_chip_button"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🚀 Definir Fasano SMARTTV como Launcher Padrão ('Sempre')"
+            android:textColor="#38BDF8"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- 3. Configurações do Android TV -->
+        <Button
+            android:id="@+id/btnActionSystemSettings"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_chip_button"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="⚙️ Configurações da TV (Ajustes do Android / Rede)"
+            android:textColor="#E2E8F0"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- 4. Ajustes Internos (HDMI, Quarto, Apps) -->
+        <Button
+            android:id="@+id/btnActionOpenSettings"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_chip_button"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="📺 Ajustes de Canais HDMI e Aplicativos"
+            android:textColor="#F59E0B"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- 5. Voltar ao Vídeo / Fechar Menu -->
+        <Button
+            android:id="@+id/btnActionDismiss"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_shortcut_sky"
+            android:text="✔️ Voltar à Reprodução"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+</LinearLayout>

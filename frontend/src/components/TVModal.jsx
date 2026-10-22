@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Tv, Save, CheckSquare, Square, Layers, Film, Wifi, QrCode, Upload, Trash2, Smartphone, Key, Eye, Sliders } from 'lucide-react';
+import { X, Tv, Save, CheckSquare, Square, Layers, Film, Wifi, QrCode, Upload, Trash2, Smartphone, Key, Eye, Sliders, User, Building, Lock } from 'lucide-react';
 
 export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlists, shortcuts }) {
   const [name, setName] = useState('');
@@ -20,7 +20,10 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
     wifi_qrcode_url: '',
     wifi_qr_size: 110,
     auto_hide_dock: false,
-    auto_hide_seconds: 15
+    auto_hide_seconds: 15,
+    uh_number: '',
+    guest_name: '',
+    admin_exit_pin: '1234'
   });
   const [uploadingQr, setUploadingQr] = useState(false);
   const fileInputRef = useRef(null);
@@ -61,6 +64,9 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
           wifi_qr_size: tv.custom_settings.wifi_qr_size || 110,
           auto_hide_dock: tv.custom_settings.auto_hide_dock ?? false,
           auto_hide_seconds: tv.custom_settings.auto_hide_seconds || 15,
+          uh_number: tv.custom_settings.uh_number || '',
+          guest_name: tv.custom_settings.guest_name || '',
+          admin_exit_pin: tv.custom_settings.admin_exit_pin || '1234',
           ...tv.custom_settings
         });
       }
@@ -83,7 +89,10 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
         wifi_qrcode_url: '',
         wifi_qr_size: 110,
         auto_hide_dock: false,
-        auto_hide_seconds: 15
+        auto_hide_seconds: 15,
+        uh_number: '',
+        guest_name: '',
+        admin_exit_pin: '1234'
       });
     }
   }, [isOpen, tv?.id]);
@@ -179,7 +188,7 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Seção 1: Identificação Básica */}
+            {/* Seção 1: Identificação Básica & Hospitalidade (UH e Hóspede) */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Nome da TV / Localização</label>
@@ -198,9 +207,42 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="Ex: 1º Andar, Recepção, Bar"
+                  placeholder="Ex: 1º Andar, Recepção, TI"
                   value={roomGroup}
                   onChange={e => setRoomGroup(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f59e0b' }}>
+                  <Building size={14} /> Unidade Habitacional (UH / Quarto)
+                </label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Ex: 101, 204, TI"
+                  value={customSettings.uh_number || ''}
+                  onChange={e => setCustomSettings({ ...customSettings, uh_number: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#34d399' }}>
+                  <User size={14} /> Nome do Hóspede Atual
+                </label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Ex: Diego Reis (ou via integração PMS)"
+                  value={customSettings.guest_name || ''}
+                  onChange={e => {
+                    const gName = e.target.value;
+                    setCustomSettings({
+                      ...customSettings,
+                      guest_name: gName,
+                      welcome_title: gName ? `Sr(a). ${gName}, Bem-vindo(a) ao Fasano` : (customSettings.welcome_title || 'Seja Bem-vindo(a)!')
+                    });
+                  }}
                 />
               </div>
             </div>
@@ -571,6 +613,31 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Seção 7: Segurança & Modo Kiosk (Senha de Saída na TV) */}
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: 14, padding: 14
+            }}>
+              <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f87171', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Lock size={16} color="#f87171" /> Senha de Saída do App na TV (Modo Kiosk)
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+                Impede que hóspedes fechem o app Fasano SMARTTV ou acessem a tela original da TV. Para fechar o app na TV ou abrir ajustes, é obrigatório digitar este PIN.
+              </div>
+              <div style={{ maxWidth: 240 }}>
+                <label className="form-label" style={{ fontSize: '0.78rem' }}>PIN de Saída (4 a 6 dígitos)</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  maxLength={6}
+                  placeholder="Ex: 1234"
+                  value={customSettings.admin_exit_pin || '1234'}
+                  onChange={e => setCustomSettings({ ...customSettings, admin_exit_pin: e.target.value.replace(/\D/g, '') })}
+                  style={{ fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.25em', fontSize: '1.2rem', textAlign: 'center' }}
+                />
               </div>
             </div>
           </div>

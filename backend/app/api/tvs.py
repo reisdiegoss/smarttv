@@ -13,7 +13,8 @@ from app.services.audit import record_audit_log
 from app.models.dto import (
     SmartTVOut, SmartTVCreate, SmartTVUpdate,
     SmartTVPairRequest, SmartTVClaimRequest, SmartTVPingRequest,
-    SmartTVBindRequest, SmartTVQuickUpdateRequest, SmartTVAssignDeviceRequest, TVClientConfig
+    SmartTVBindRequest, SmartTVQuickUpdateRequest, SmartTVAssignDeviceRequest, TVClientConfig,
+    SmartTVPmsSyncRequest
 )
 
 router = APIRouter(prefix="/tvs", tags=["Smart TVs"])
@@ -558,6 +559,75 @@ async def quick_update(payload: SmartTVQuickUpdateRequest, request: Request, db:
     await db.commit()
     await db.refresh(tv)
     return {"status": "ok", "message": "TV atualizada com sucesso", "tv_id": tv.id}
+
+# PMS Hospitality Integration Endpoint (Sincronização de UH e Hóspede via Sistema Externo)
+@router.post("/pms-sync")
+async def pms_sync_guest(payload: SmartTVPmsSyncRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Endpoint de Integração para sistemas PMS de Hotel (Opera, Totvs, CMNet, Desbravador, etc.).
+    Recebe a UH e o Nome do Hóspede para atualizar a TV do quarto em tempo real.
+    """
+    clean_uh = payload.uh_number.strip()
+    result = await db.execute(select(SmartTV))
+    tvs = result.scalars().all()
+
+    target_tv = None
+    for tv in tvs:
+        cust = tv.custom_settings or {}
+        tv_uh = str(cust.get("uh_number") or "").strip()
+        if tv_uh and tv_uh.lower() == clean_uh.lower():
+            target_tv = tv
+            break
+        # Fallback: se o nome ou grupo da TV contiver a UH (ex: "Quarto 101" ou "UH 101")
+        if clean_uh.lower() in tv.name.lower() or (tv.room_group and clean_uh.lower() in tv.room_group.lower()):
+            target_tv = tv
+            break
+
+    if not target_tv:
+        raise HTTPException(status_code=404, detail=f"Nenhuma TV vinculada à UH '{payload.uh_number}'")
+
+    current_settings = dict(target_tv.custom_settings or {})
+    current_settings["uh_number"] = clean_uh
+    if payload.guest_name is not None:
+        clean_guest = payload.guest_name.strip()
+        current_settings["guest_name"] = clean_guest
+        if clean_guest:
+            current_settings["welcome_title"] = payload.welcome_title or f"Sr(a). {clean_guest}, Bem-vindo(a) ao Fasano"
+        else:
+            current_settings["welcome_title"] = payload.welcome_title or "Seja Bem-vindo(a) ao Fasano"
+    if payload.welcome_subtitle is not None:
+        current_settings["welcome_subtitle"] = payload.welcome_subtitle
+
+    target_tv.custom_settings = current_settings
+    target_tv.updated_at = datetime.utcnow()
+
+    log = DeviceLog(
+        tv_id=target_tv.id,
+        event_type="PMS_SYNC",
+        message=f"Integração PMS: Hóspede '{payload.guest_name}' vinculado à UH {clean_uh}"
+    )
+    db.add(log)
+
+    await record_audit_log(
+        db=db,
+        request=request,
+        action="PMS_SYNC",
+        entity="SmartTV",
+        entity_id=str(target_tv.id),
+        entity_name=target_tv.name,
+        description=f"Hóspede '{payload.guest_name}' sincronizado com UH {clean_uh}"
+    )
+
+    await db.commit()
+    await db.refresh(target_tv)
+    return {
+        "status": "ok",
+        "message": f"TV da UH {clean_uh} atualizada com sucesso para {payload.guest_name}",
+        "tv_id": target_tv.id,
+        "tv_name": target_tv.name,
+        "uh_number": clean_uh,
+        "guest_name": payload.guest_name
+    }
 
 # Full Config Endpoint consumed by Android APK
 @router.get("/config/{device_id}", response_model=TVClientConfig)

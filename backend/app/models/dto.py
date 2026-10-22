@@ -203,3 +203,11 @@ class TVClientConfig(BaseModel):
     playlist: Optional[Dict[str, Any]] = None
     custom_settings: Dict[str, Any]
     server_time: datetime
+
+# PMS Hospitality Integration Request (UH / Guest Sync)
+class SmartTVPmsSyncRequest(BaseModel):
+    uh_number: str
+    guest_name: Optional[str] = None
+    welcome_title: Optional[str] = None
+    welcome_subtitle: Optional[str] = None
+    auto_checkin: bool = True

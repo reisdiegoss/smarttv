@@ -35,6 +35,7 @@ android-tv-app/.gradle/
 android-tv-app/build/
 android-tv-app/app/build/
 *.apk
+!frontend/public/smarttv-launcher.apk
 *.aab
 local.properties
 

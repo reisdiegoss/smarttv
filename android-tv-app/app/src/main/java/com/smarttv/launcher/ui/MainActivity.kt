@@ -1,7 +1,11 @@
 package com.smarttv.launcher.ui
 
+import android.app.AlertDialog
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -95,6 +99,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnHdmiNone: Button
     private lateinit var btnSettingsSwitchRoom: Button
     private lateinit var btnSetDefaultLauncher: Button
+    private lateinit var btnSettingsExitApp: Button
     private lateinit var containerSettingsApps: LinearLayout
     private lateinit var btnSettingsDone: Button
 
@@ -164,6 +169,7 @@ class MainActivity : AppCompatActivity() {
         btnHdmiNone = findViewById(R.id.btnHdmiNone)
         btnSettingsSwitchRoom = findViewById(R.id.btnSettingsSwitchRoom)
         btnSetDefaultLauncher = findViewById(R.id.btnSetDefaultLauncher)
+        btnSettingsExitApp = findViewById(R.id.btnSettingsExitApp)
         containerSettingsApps = findViewById(R.id.containerSettingsApps)
         btnSettingsDone = findViewById(R.id.btnSettingsDone)
 
@@ -267,48 +273,266 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Define este APK como o Launcher (Home) padrão do sistema Android TV
+     * Utiliza o componente FakeHomeActivity para invalidar o cache de Home do sistema e forçar
+     * o diálogo nativo do Android TV ("Usar Fasano SMARTTV como tela inicial: [Desta vez] [Sempre]").
      */
     private fun requestSetDefaultLauncher() {
-        var launched = false
-
         try {
-            val intent = Intent(Settings.ACTION_HOME_SETTINGS).apply {
+            val pm = packageManager
+            val fakeComponent = ComponentName(this, FakeHomeActivity::class.java)
+
+            // 1. Habilita temporariamente a FakeHomeActivity
+            pm.setComponentEnabledSetting(
+                fakeComponent,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP
+            )
+
+            // 2. Dispara o Intent de HOME para forçar a exibição do seletor
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                launched = true
-            }
-        } catch (ignored: Exception) {}
+            startActivity(Intent.createChooser(homeIntent, "Selecione 'Fasano SMARTTV' e toque em 'Sempre'"))
 
-        if (!launched) {
-            try {
-                val intent = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                if (intent.resolveActivity(packageManager) != null) {
-                    startActivity(intent)
-                    launched = true
-                }
-            } catch (ignored: Exception) {}
-        }
-
-        if (!launched) {
-            try {
-                val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                    addCategory(Intent.CATEGORY_HOME)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                startActivity(Intent.createChooser(homeIntent, "Defina o SmartTV Launcher como padrão ('Sempre')"))
-                launched = true
-            } catch (e: Exception) {
-                Toast.makeText(this, "Acesse Configurações > Apps > Apps Padrão > App de Início", Toast.LENGTH_LONG).show()
-            }
+            // 3. Desabilita a FakeHomeActivity após 2.5 segundos
+            handler.postDelayed({
+                try {
+                    pm.setComponentEnabledSetting(
+                        fakeComponent,
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        PackageManager.DONT_KILL_APP
+                    )
+                } catch (ignored: Exception) {}
+            }, 2500)
+        } catch (e: Exception) {
+            Log.e(TAG, "Falha ao acionar seletor de launcher padrão", e)
+            openAndroidSystemSettings()
         }
     }
 
     /**
-     * Launcher Home: Botão Voltar (BACK) NUNCA fecha a activity!
+     * Abre as configurações nativas do Android TV
+     */
+    private fun openAndroidSystemSettings() {
+        exoPlayer?.pause()
+        try {
+            val intent = Intent(Settings.ACTION_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao abrir configurações da TV", e)
+            Toast.makeText(this, "Não foi possível abrir as configurações da TV", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Retorna à tela inicial / Launcher original da TV (modo saída segura de kiosk)
+     */
+    private fun exitToStockLauncher() {
+        exoPlayer?.pause()
+        try {
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+            }
+            val resolveInfos = packageManager.queryIntentActivities(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+            var launchedStock = false
+            for (info in resolveInfos) {
+                val pkg = info.activityInfo.packageName
+                if (pkg != packageName && pkg != "com.smarttv.launcher") {
+                    val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+                        ?: Intent(Intent.ACTION_MAIN).apply {
+                            setClassName(pkg, info.activityInfo.name)
+                            addCategory(Intent.CATEGORY_HOME)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                    startActivity(launchIntent)
+                    launchedStock = true
+                    break
+                }
+            }
+            if (!launchedStock) {
+                finishAffinity()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao retornar ao launcher original", e)
+            finishAffinity()
+        }
+    }
+
+    /**
+     * Diálogo de Autenticação com Senha / PIN para Administrador e Saída
+     */
+    private fun promptAdminPinDialog(onSuccessAction: (() -> Unit)? = null) {
+        exoPlayer?.pause()
+        val custom = currentConfig?.customSettings ?: emptyMap()
+        val expectedPin = (custom["admin_exit_pin"] as? String)?.trim()?.takeIf { it.isNotBlank() } ?: "1234"
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_admin_pin, null)
+        val tvPinDisplay = dialogView.findViewById<TextView>(R.id.tvPinDisplay)
+        val tvPinError = dialogView.findViewById<TextView>(R.id.tvPinError)
+        val btnPinCancel = dialogView.findViewById<Button>(R.id.btnPinCancel)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        var enteredPin = ""
+
+        fun updatePinDisplay() {
+            tvPinError.visibility = View.GONE
+            if (enteredPin.isEmpty()) {
+                tvPinDisplay.text = "— — — —"
+            } else {
+                tvPinDisplay.text = "• ".repeat(enteredPin.length).trim()
+            }
+        }
+
+        fun checkPin() {
+            if (enteredPin == expectedPin) {
+                dialog.dismiss()
+                if (onSuccessAction != null) {
+                    onSuccessAction.invoke()
+                } else {
+                    showAdminActionsDialog()
+                }
+            } else {
+                tvPinError.visibility = View.VISIBLE
+                tvPinError.text = "PIN incorreto! Verifique a senha no painel."
+                enteredPin = ""
+                tvPinDisplay.text = "— — — —"
+            }
+        }
+
+        fun appendDigit(digit: String) {
+            if (enteredPin.length < 6) {
+                enteredPin += digit
+                updatePinDisplay()
+                if (enteredPin.length >= expectedPin.length) {
+                    checkPin()
+                }
+            }
+        }
+
+        // Teclado virtual navegável pelo D-Pad do controle da TV
+        dialogView.findViewById<Button>(R.id.btnKey0).setOnClickListener { appendDigit("0") }
+        dialogView.findViewById<Button>(R.id.btnKey1).setOnClickListener { appendDigit("1") }
+        dialogView.findViewById<Button>(R.id.btnKey2).setOnClickListener { appendDigit("2") }
+        dialogView.findViewById<Button>(R.id.btnKey3).setOnClickListener { appendDigit("3") }
+        dialogView.findViewById<Button>(R.id.btnKey4).setOnClickListener { appendDigit("4") }
+        dialogView.findViewById<Button>(R.id.btnKey5).setOnClickListener { appendDigit("5") }
+        dialogView.findViewById<Button>(R.id.btnKey6).setOnClickListener { appendDigit("6") }
+        dialogView.findViewById<Button>(R.id.btnKey7).setOnClickListener { appendDigit("7") }
+        dialogView.findViewById<Button>(R.id.btnKey8).setOnClickListener { appendDigit("8") }
+        dialogView.findViewById<Button>(R.id.btnKey9).setOnClickListener { appendDigit("9") }
+
+        dialogView.findViewById<Button>(R.id.btnKeyClear).setOnClickListener {
+            enteredPin = ""
+            updatePinDisplay()
+        }
+
+        dialogView.findViewById<Button>(R.id.btnKeyConfirm).setOnClickListener {
+            checkPin()
+        }
+
+        btnPinCancel.setOnClickListener {
+            dialog.dismiss()
+            if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
+                exoPlayer?.play()
+            }
+        }
+
+        dialog.setOnDismissListener {
+            if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
+                exoPlayer?.play()
+            }
+        }
+
+        // Intercepta teclas numéricas do controle físico
+        dialog.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                when (keyCode) {
+                    KeyEvent.KEYCODE_0, KeyEvent.KEYCODE_NUMPAD_0 -> { appendDigit("0"); true }
+                    KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_NUMPAD_1 -> { appendDigit("1"); true }
+                    KeyEvent.KEYCODE_2, KeyEvent.KEYCODE_NUMPAD_2 -> { appendDigit("2"); true }
+                    KeyEvent.KEYCODE_3, KeyEvent.KEYCODE_NUMPAD_3 -> { appendDigit("3"); true }
+                    KeyEvent.KEYCODE_4, KeyEvent.KEYCODE_NUMPAD_4 -> { appendDigit("4"); true }
+                    KeyEvent.KEYCODE_5, KeyEvent.KEYCODE_NUMPAD_5 -> { appendDigit("5"); true }
+                    KeyEvent.KEYCODE_6, KeyEvent.KEYCODE_NUMPAD_6 -> { appendDigit("6"); true }
+                    KeyEvent.KEYCODE_7, KeyEvent.KEYCODE_NUMPAD_7 -> { appendDigit("7"); true }
+                    KeyEvent.KEYCODE_8, KeyEvent.KEYCODE_NUMPAD_8 -> { appendDigit("8"); true }
+                    KeyEvent.KEYCODE_9, KeyEvent.KEYCODE_NUMPAD_9 -> { appendDigit("9"); true }
+                    KeyEvent.KEYCODE_DEL -> {
+                        if (enteredPin.isNotEmpty()) {
+                            enteredPin = enteredPin.dropLast(1)
+                            updatePinDisplay()
+                        }
+                        true
+                    }
+                    else -> false
+                }
+            } else {
+                false
+            }
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Menu de Ações de Administrador (Sair, Launcher Padrão, Ajustes)
+     */
+    private fun showAdminActionsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_admin_actions, null)
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        dialogView.findViewById<Button>(R.id.btnActionExitLauncher).setOnClickListener {
+            dialog.dismiss()
+            exitToStockLauncher()
+        }
+
+        dialogView.findViewById<Button>(R.id.btnActionSetDefault).setOnClickListener {
+            dialog.dismiss()
+            requestSetDefaultLauncher()
+        }
+
+        dialogView.findViewById<Button>(R.id.btnActionSystemSettings).setOnClickListener {
+            dialog.dismiss()
+            openAndroidSystemSettings()
+        }
+
+        dialogView.findViewById<Button>(R.id.btnActionOpenSettings).setOnClickListener {
+            dialog.dismiss()
+            showPairingScreen()
+        }
+
+        dialogView.findViewById<Button>(R.id.btnActionDismiss).setOnClickListener {
+            dialog.dismiss()
+            if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
+                exoPlayer?.play()
+            }
+        }
+
+        dialog.setOnDismissListener {
+            if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
+                exoPlayer?.play()
+            }
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Launcher Home: Botão Voltar (BACK) em modo kiosk solicita PIN de saída
      */
     override fun onBackPressed() {
         if (layoutPairing.visibility == View.VISIBLE) {
@@ -316,8 +540,11 @@ class MainActivity : AppCompatActivity() {
                 showLauncherScreen()
             }
         } else {
-            // Reexibe a barra se estiver oculta
-            resetAutoHideTimer()
+            if (SmartTVApp.instance.isPaired()) {
+                promptAdminPinDialog()
+            } else {
+                resetAutoHideTimer()
+            }
         }
     }
 
@@ -332,6 +559,7 @@ class MainActivity : AppCompatActivity() {
 
         btnSetDefaultLauncher.setOnClickListener { requestSetDefaultLauncher() }
         btnSetDefaultLauncherTop.setOnClickListener { requestSetDefaultLauncher() }
+        btnSettingsExitApp.setOnClickListener { exitToStockLauncher() }
 
         btnSettingsDone.setOnClickListener {
             showLauncherScreen()
@@ -491,7 +719,7 @@ class MainActivity : AppCompatActivity() {
                         deviceId = deviceId,
                         pairingCode = "",
                         ipAddress = null,
-                        appVersion = "1.0.2"
+                        appVersion = "1.0.4"
                     )
                 )
 
@@ -578,7 +806,7 @@ class MainActivity : AppCompatActivity() {
                         tvId = tv.id,
                         deviceId = deviceId,
                         ipAddress = null,
-                        appVersion = "1.0.3"
+                        appVersion = "1.0.4"
                     )
                 )
 
@@ -613,7 +841,7 @@ class MainActivity : AppCompatActivity() {
                             PingRequest(
                                 deviceId = deviceId,
                                 ipAddress = null,
-                                appVersion = "1.0.3"
+                                appVersion = "1.0.4"
                             )
                         )
                         val isPaired = (response["is_paired"] as? Boolean) ?: false
@@ -674,8 +902,17 @@ class MainActivity : AppCompatActivity() {
 
         // 1. Atualiza textos e Wi-Fi
         val custom = config.customSettings ?: emptyMap()
-        tvTitle.text = (custom["welcome_title"] as? String) ?: "Bem-vindo ao ${config.name}"
-        tvSubtitle.text = (custom["welcome_subtitle"] as? String) ?: "Aproveite a sua estadia com conforto e entretenimento."
+        val guestName = (custom["guest_name"] as? String)?.trim() ?: ""
+        val uhNumber = (custom["uh_number"] as? String)?.trim() ?: ""
+
+        val defaultWelcome = when {
+            guestName.isNotEmpty() -> "Sr(a). $guestName, Bem-vindo(a) ao Fasano"
+            uhNumber.isNotEmpty() -> "Bem-vindo(a) à UH $uhNumber • Fasano"
+            else -> "Bem-vindo ao ${config.name}"
+        }
+
+        tvTitle.text = (custom["welcome_title"] as? String)?.takeIf { it.isNotBlank() } ?: defaultWelcome
+        tvSubtitle.text = (custom["welcome_subtitle"] as? String)?.takeIf { it.isNotBlank() } ?: "Aproveite a sua estadia com conforto e entretenimento."
 
         val wifiSsid = (custom["wifi_ssid"] as? String)?.trim() ?: ""
         val wifiPass = (custom["wifi_password"] as? String)?.trim() ?: ""
@@ -906,6 +1143,7 @@ class MainActivity : AppCompatActivity() {
             btnSky.setBackgroundResource(R.drawable.bg_shortcut_sky)
 
             btnSky.setOnClickListener {
+                exoPlayer?.pause()
                 HdmiInputManager.switchToHdmiInput(this, config.hdmi.inputId)
             }
             btnSky.isFocusable = true
@@ -938,6 +1176,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             btnApp.setOnClickListener {
+                exoPlayer?.pause()
                 AppLauncherManager.launchApp(this, sc.packageName)
             }
             btnApp.isFocusable = true
@@ -967,6 +1206,7 @@ class MainActivity : AppCompatActivity() {
             btnSky.setBackgroundResource(R.drawable.bg_shortcut_sky)
 
             btnSky.setOnClickListener {
+                exoPlayer?.pause()
                 HdmiInputManager.switchToHdmiInput(this, config.hdmi.inputId)
             }
             btnSky.isFocusable = true
@@ -1003,6 +1243,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             btnApp.setOnClickListener {
+                exoPlayer?.pause()
                 AppLauncherManager.launchApp(this, sc.packageName)
             }
             btnApp.isFocusable = true
@@ -1054,12 +1295,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Tecla MENU ou SETTINGS no controle abre/fecha o painel de ajustes
+        // Tecla MENU ou SETTINGS no controle abre o diálogo de PIN se a TV estiver pareada
         if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS) {
-            togglePairingOverlay()
+            if (SmartTVApp.instance.isPaired()) {
+                promptAdminPinDialog()
+            } else {
+                togglePairingOverlay()
+            }
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        exoPlayer?.pause()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        exoPlayer?.pause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
+            exoPlayer?.play()
+        }
     }
 
     private fun startClock() {
@@ -1080,8 +1342,8 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Heartbeat contínuo:
-     * 1. Atualiza status Online no painel
-     * 2. Se a TV for alterada no painel web (mudou HDMI, apps, layout, vídeos), atualiza na hora em tempo real!
+     * 1. Atualiza status Online no painel a cada 5s
+     * 2. Se a TV for alterada no painel web (mudou HDMI, apps, layout, UH, vídeos), sincroniza quase que instantaneamente!
      */
     private fun startHeartbeatLoop() {
         handler.post(object : Runnable {
@@ -1095,7 +1357,7 @@ class MainActivity : AppCompatActivity() {
                             PingRequest(
                                 deviceId = deviceId,
                                 ipAddress = null,
-                                appVersion = "1.0.2"
+                                appVersion = "1.0.4"
                             )
                         )
                         val isServerPaired = (response["is_paired"] as? Boolean) ?: false
@@ -1124,7 +1386,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                handler.postDelayed(this, 15000)
+                handler.postDelayed(this, 5000)
             }
         })
     }

@@ -596,7 +596,34 @@ export default function App() {
                   </div>
 
                   <div className="tv-card-body">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '10px 0' }}>
+                    {/* UH & Hóspede (Hospitalidade / PMS) */}
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: 8,
+                      padding: '6px 10px',
+                      marginBottom: 8,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '0.82rem'
+                    }}>
+                      <span style={{ color: '#f59e0b', fontWeight: 600 }}>
+                        UH {tv.custom_settings?.uh_number || '---'}
+                      </span>
+                      <span style={{ 
+                        color: tv.custom_settings?.guest_name ? '#34d399' : 'var(--text-muted)', 
+                        fontWeight: 500, 
+                        overflow: 'hidden', 
+                        textOverflow: 'ellipsis', 
+                        whiteSpace: 'nowrap', 
+                        maxWidth: 160 
+                      }} title={tv.custom_settings?.guest_name || 'Quarto Vago'}>
+                        👤 {tv.custom_settings?.guest_name || 'Vago'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '6px 0' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Layout:</span>
                         <strong style={{ color: '#fff' }}>{tv.layout?.name || 'Hotel Luxo'}</strong>
@@ -677,7 +704,34 @@ export default function App() {
                   </div>
 
                   <div className="tv-card-body">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.85rem', color: 'var(--text-secondary)', padding: '10px 0' }}>
+                    {/* UH & Hóspede (Hospitalidade / PMS) */}
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: 8,
+                      padding: '6px 10px',
+                      marginBottom: 8,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '0.82rem'
+                    }}>
+                      <span style={{ color: '#f59e0b', fontWeight: 600 }}>
+                        UH {tv.custom_settings?.uh_number || '---'}
+                      </span>
+                      <span style={{ 
+                        color: tv.custom_settings?.guest_name ? '#34d399' : 'var(--text-muted)', 
+                        fontWeight: 500, 
+                        overflow: 'hidden', 
+                        textOverflow: 'ellipsis', 
+                        whiteSpace: 'nowrap', 
+                        maxWidth: 160 
+                      }} title={tv.custom_settings?.guest_name || 'Quarto Vago'}>
+                        👤 {tv.custom_settings?.guest_name || 'Vago'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.85rem', color: 'var(--text-secondary)', padding: '6px 0' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Layout da Launcher:</span>
                         <strong style={{ color: '#60a5fa' }}>{tv.layout?.name || 'Hotel Luxo'}</strong>

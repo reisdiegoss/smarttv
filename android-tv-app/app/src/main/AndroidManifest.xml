@@ -55,6 +55,19 @@
             </intent-filter>
         </activity>
 
+        <!-- Fake Activity desabilitada usada para forçar o seletor de Launcher padrão no Android TV -->
+        <activity
+            android:name=".ui.FakeHomeActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:label="Fasano SMARTTV Config">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Tela de Pareamento (Exibe Código PIN para cadastro no painel) -->
         <activity
             android:name=".ui.PairingActivity"
