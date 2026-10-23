@@ -646,6 +646,7 @@ class FIASService:
                             cust.pop("guest_name", None)
                             cust["room_status"] = "Vacant"
                             cust["welcome_title"] = "Seja Bem-vindo(a) ao Fasano"
+                            cust["checkout_cleanup_pending"] = True
 
                         target_tv.custom_settings = cust
                         target_tv.updated_at = datetime.utcnow()

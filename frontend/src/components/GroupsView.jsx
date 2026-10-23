@@ -90,6 +90,7 @@ export default function GroupsView({
     weather_city: 'Salvador',
     weather_temp: '28°C',
     weather_condition: 'sunny',
+    weather_font_size: 20,
     dock_icon_size: 72,
     header_layout: 'welcome_left_widgets_right',
     wifi_ssid: 'Fasano-Guest',
@@ -180,6 +181,7 @@ export default function GroupsView({
       weather_city: 'Salvador',
       weather_temp: '28°C',
       weather_condition: 'sunny',
+      weather_font_size: 20,
       dock_icon_size: 72,
       header_layout: 'welcome_left_widgets_right',
       wifi_ssid: 'Fasano-Guest',
@@ -215,6 +217,7 @@ export default function GroupsView({
       weather_city: initialCity,
       weather_temp: group.custom_settings?.weather_temp || '28°C',
       weather_condition: group.custom_settings?.weather_condition || 'sunny',
+      weather_font_size: group.custom_settings?.weather_font_size || 20,
       dock_icon_size: group.custom_settings?.dock_icon_size || 72,
       header_layout: group.custom_settings?.header_layout || 'welcome_left_widgets_right',
       wifi_ssid: group.custom_settings?.wifi_ssid || '',
@@ -1058,6 +1061,49 @@ export default function GroupsView({
                           <RotateCw size={13} className={fetchingWeather ? 'spin' : ''} />
                           {fetchingWeather ? 'Sincronizando...' : 'Atualizar da API'}
                         </button>
+                      </div>
+
+                      {/* Ajuste de Tamanho da Previsão do Tempo no Grupo */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <label className="form-label" style={{ fontSize: '0.76rem', marginBottom: 0 }}>
+                            Tamanho da Previsão do Tempo (Temperatura e Cidade)
+                          </label>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fbbf24' }}>
+                            {formCustomSettings.weather_font_size || 20}px
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="14"
+                          max="40"
+                          step="1"
+                          value={formCustomSettings.weather_font_size || 20}
+                          onChange={e => setFormCustomSettings({ ...formCustomSettings, weather_font_size: parseInt(e.target.value) })}
+                          style={{ width: '100%', accentColor: '#fbbf24', cursor: 'pointer' }}
+                        />
+                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                          {[
+                            { label: 'Compacto', size: 16 },
+                            { label: 'Normal', size: 20 },
+                            { label: 'Grande', size: 26 },
+                            { label: 'Destaque', size: 34 }
+                          ].map(preset => (
+                            <button
+                              key={preset.size}
+                              type="button"
+                              onClick={() => setFormCustomSettings({ ...formCustomSettings, weather_font_size: preset.size })}
+                              style={{
+                                padding: '3px 8px', fontSize: '0.72rem', borderRadius: 6, cursor: 'pointer',
+                                background: (formCustomSettings.weather_font_size || 20) === preset.size ? 'rgba(251, 191, 36, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                                border: (formCustomSettings.weather_font_size || 20) === preset.size ? '1px solid #fbbf24' : '1px solid rgba(255, 255, 255, 0.08)',
+                                color: (formCustomSettings.weather_font_size || 20) === preset.size ? '#fbbf24' : '#94a3b8'
+                              }}
+                            >
+                              {preset.label} ({preset.size}px)
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}

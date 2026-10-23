@@ -593,7 +593,11 @@ async def assign_device(payload: SmartTVAssignDeviceRequest, request: Request, d
 # Heartbeat Ping from APK (returns updated_at so TV reloads in real-time if changed in dashboard)
 @router.post("/ping")
 async def tv_ping(payload: SmartTVPingRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(SmartTV).where(SmartTV.device_id == payload.device_id))
+    result = await db.execute(
+        select(SmartTV)
+        .options(selectinload(SmartTV.group))
+        .where(SmartTV.device_id == payload.device_id)
+    )
     tv = result.scalar_one_or_none()
     if not tv:
         raise HTTPException(status_code=404, detail="TV não encontrada")
@@ -605,11 +609,29 @@ async def tv_ping(payload: SmartTVPingRequest, db: AsyncSession = Depends(get_db
     if payload.app_version:
         tv.app_version = payload.app_version
 
+    # Limpeza de dados de apps pós-checkout confirmada pelo APK
+    if payload.cleanup_completed:
+        tc = dict(tv.custom_settings or {})
+        if tc.get("checkout_cleanup_pending"):
+            tc["checkout_cleanup_pending"] = False
+            tv.custom_settings = tc
+            log = DeviceLog(
+                tv_id=tv.id,
+                event_type="APP_CLEANUP",
+                message="Limpeza de dados e cache de apps (Netflix, YouTube, Prime, etc.) concluída com sucesso na TV após checkout"
+            )
+            db.add(log)
+
+    effective_updated_at = tv.updated_at
+    if tv.group and tv.group.updated_at:
+        if not effective_updated_at or tv.group.updated_at > effective_updated_at:
+            effective_updated_at = tv.group.updated_at
+
     await db.commit()
     return {
         "status": "ok",
         "is_paired": tv.is_paired,
-        "updated_at": tv.updated_at.isoformat() if tv.updated_at else None,
+        "updated_at": effective_updated_at.isoformat() if effective_updated_at else None,
         "server_time": datetime.utcnow()
     }
 

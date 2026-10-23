@@ -178,7 +178,7 @@ class SmartTV(Base):
     
     app_version = Column(String(50), default="1.0.0")
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
 
     group = relationship("TVGroup", back_populates="tvs")
     layout = relationship("LayoutPreset", back_populates="tvs")

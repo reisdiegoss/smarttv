@@ -271,6 +271,11 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
               const weatherCond = custom.weather_condition || 'sunny';
               const isReversedHeader = custom.header_layout === 'widgets_left_welcome_right';
               
+              const weatherFontSize = custom.weather_font_size || 20;
+              const weatherTempSizePx = Math.round(weatherFontSize * 0.8);
+              const weatherCitySizePx = Math.max(10, Math.round(weatherTempSizePx * 0.62));
+              const weatherIconSizePx = Math.max(16, Math.round(weatherTempSizePx * 0.9));
+
               const dockBase = custom.dock_icon_size || 72;
               const dockBtnWidth = Math.round(dockBase * 1.65);
               const dockBtnHeight = Math.round(dockBase * 1.15);
@@ -278,14 +283,14 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
               const dockTextSize = Math.max(11, Math.round(dockBase * 0.175));
               const qrSizePx = Math.round((custom.wifi_qr_size || 110) * 0.42);
 
-              const getWeatherIcon = () => {
+              const getWeatherIcon = (iconSize = 18) => {
                 switch (weatherCond) {
-                  case 'sunny': return <Sun size={18} color="#fbbf24" />;
-                  case 'partly_cloudy': return <CloudSun size={18} color="#60a5fa" />;
-                  case 'cloudy': return <Cloud size={18} color="#94a3b8" />;
-                  case 'rain': return <CloudRain size={18} color="#38bdf8" />;
-                  case 'clear_night': return <Moon size={18} color="#c084fc" />;
-                  default: return <Sun size={18} color="#fbbf24" />;
+                  case 'sunny': return <Sun size={iconSize} color="#fbbf24" />;
+                  case 'partly_cloudy': return <CloudSun size={iconSize} color="#60a5fa" />;
+                  case 'cloudy': return <Cloud size={iconSize} color="#94a3b8" />;
+                  case 'rain': return <CloudRain size={iconSize} color="#38bdf8" />;
+                  case 'clear_night': return <Moon size={iconSize} color="#c084fc" />;
+                  default: return <Sun size={iconSize} color="#fbbf24" />;
                 }
               };
 
@@ -332,10 +337,10 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                         padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8,
                         boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                       }}>
-                        {getWeatherIcon()}
+                        {getWeatherIcon(weatherIconSizePx)}
                         <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
-                          <span style={{ fontSize: '1rem', fontWeight: 700, color: '#fff' }}>{weatherTemp}</span>
-                          <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.7)', textTransform: 'capitalize' }}>
+                          <span style={{ fontSize: `${weatherTempSizePx}px`, fontWeight: 700, color: '#fff' }}>{weatherTemp}</span>
+                          <div style={{ fontSize: `${weatherCitySizePx}px`, color: 'rgba(255,255,255,0.7)', textTransform: 'capitalize' }}>
                             {weatherCity}
                           </div>
                         </div>
@@ -440,14 +445,14 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                             background: isSky
                               ? (isFocused 
                                   ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(185, 28, 28, 0.95) 100%)' 
-                                  : 'rgba(239, 68, 68, 0.22)')
+                                  : 'rgba(239, 68, 68, 0.25)')
                               : (isFocused 
                                   ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%)' 
-                                  : 'rgba(15, 23, 42, 0.65)'),
+                                  : 'rgba(0, 0, 0, 0.45)'),
                             backdropFilter: 'blur(12px)',
                             border: isFocused 
                               ? (isSky ? '2.5px solid #ffffff' : '2.5px solid #3b82f6')
-                              : (isSky ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(255, 255, 255, 0.1)'),
+                              : (isSky ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(255, 255, 255, 0.15)'),
                             boxShadow: isFocused 
                               ? (isSky 
                                   ? '0 0 0 2px rgba(255,255,255,0.85), 0 14px 28px rgba(0, 0, 0, 0.7), 0 0 30px rgba(239, 68, 68, 0.6)'

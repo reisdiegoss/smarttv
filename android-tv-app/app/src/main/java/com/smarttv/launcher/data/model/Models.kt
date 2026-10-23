@@ -70,7 +70,8 @@ data class PairResponse(
 data class PingRequest(
     @SerializedName("device_id") val deviceId: String,
     @SerializedName("ip_address") val ipAddress: String?,
-    @SerializedName("app_version") val appVersion: String = "1.0.0"
+    @SerializedName("app_version") val appVersion: String = "1.0.0",
+    @SerializedName("cleanup_completed") val cleanupCompleted: Boolean? = null
 )
 
 data class TVListItem(

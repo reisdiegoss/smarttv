@@ -214,6 +214,7 @@ class SmartTVPingRequest(BaseModel):
     volume_level: Optional[int] = None
     free_storage_mb: Optional[int] = None
     current_playing_media_id: Optional[int] = None
+    cleanup_completed: Optional[bool] = None
 
 class SmartTVBindRequest(BaseModel):
     tv_id: int

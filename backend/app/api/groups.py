@@ -129,6 +129,43 @@ async def update_group(group_id: int, payload: TVGroupUpdate, request: Request, 
 
     group.updated_at = datetime.utcnow()
 
+    # Propagar alterações para todas as TVs vinculadas ao grupo
+    tvs_res = await db.execute(select(SmartTV).where(SmartTV.group_id == group.id))
+    member_tvs = tvs_res.scalars().all()
+    now_utc = datetime.utcnow()
+
+    for tv in member_tvs:
+        if "layout_id" in update_data:
+            tv.layout_id = update_data["layout_id"]
+        if "playlist_id" in update_data:
+            tv.playlist_id = update_data["playlist_id"]
+        if "hdmi_input_id" in update_data:
+            tv.hdmi_input_id = update_data["hdmi_input_id"]
+        if "hdmi_label" in update_data:
+            tv.hdmi_label = update_data["hdmi_label"]
+        if "selected_shortcuts" in update_data:
+            tv.selected_shortcuts = list(update_data["selected_shortcuts"] or [])
+
+        tc = dict(tv.custom_settings or {})
+        saved_uh = tv.uh_number or tc.get("uh_number")
+        saved_guest = tv.guest_name or tc.get("guest_name")
+        saved_status = tc.get("room_status")
+        saved_title = tc.get("welcome_title")
+        saved_cleanup = tc.get("checkout_cleanup_pending")
+
+        # Se houver custom_settings atualizado no grupo, mescla preservando a UH
+        if "custom_settings" in update_data and update_data["custom_settings"]:
+            tc.update(dict(update_data["custom_settings"]))
+
+        if saved_uh: tc["uh_number"] = saved_uh
+        if saved_guest: tc["guest_name"] = saved_guest
+        if saved_status: tc["room_status"] = saved_status
+        if saved_title: tc["welcome_title"] = saved_title
+        if saved_cleanup is not None: tc["checkout_cleanup_pending"] = saved_cleanup
+
+        tv.custom_settings = tc
+        tv.updated_at = now_utc
+
     await record_audit_log(
         db=db,
         request=request,
@@ -136,7 +173,7 @@ async def update_group(group_id: int, payload: TVGroupUpdate, request: Request, 
         entity="TVGroup",
         entity_id=str(group.id),
         entity_name=group.name,
-        description=f"Grupo '{group.name}' atualizado (herança propagada para {len(group.tvs or [])} TVs)"
+        description=f"Grupo '{group.name}' atualizado (herança propagada para {len(member_tvs)} TVs)"
     )
 
     await db.commit()
@@ -178,7 +215,7 @@ async def delete_group(group_id: int, request: Request, db: AsyncSession = Depen
 
 @router.post("/{group_id}/bulk-assign")
 async def bulk_assign_tvs_to_group(group_id: int, payload: BulkAssignGroupRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    """Atribui em massa uma lista de TVs a este grupo"""
+    """Atribui em massa uma lista de TVs a este grupo com herança instantânea"""
     stmt = select(TVGroup).where(TVGroup.id == group_id)
     result = await db.execute(stmt)
     group = result.scalar_one_or_none()
@@ -188,11 +225,36 @@ async def bulk_assign_tvs_to_group(group_id: int, payload: BulkAssignGroupReques
     if not payload.tv_ids:
         return {"status": "ok", "message": "Nenhuma TV informada para atribuição", "count": 0}
 
-    await db.execute(
-        update(SmartTV)
-        .where(SmartTV.id.in_(payload.tv_ids))
-        .values(group_id=group_id, updated_at=datetime.utcnow())
-    )
+    tvs_res = await db.execute(select(SmartTV).where(SmartTV.id.in_(payload.tv_ids)))
+    assigned_tvs = tvs_res.scalars().all()
+    now_utc = datetime.utcnow()
+
+    for tv in assigned_tvs:
+        tv.group_id = group_id
+        tv.layout_id = group.layout_id
+        tv.playlist_id = group.playlist_id
+        tv.hdmi_input_id = group.hdmi_input_id
+        tv.hdmi_label = group.hdmi_label
+        tv.selected_shortcuts = list(group.selected_shortcuts or [])
+
+        tc = dict(tv.custom_settings or {})
+        saved_uh = tv.uh_number or tc.get("uh_number")
+        saved_guest = tv.guest_name or tc.get("guest_name")
+        saved_status = tc.get("room_status")
+        saved_title = tc.get("welcome_title")
+        saved_cleanup = tc.get("checkout_cleanup_pending")
+
+        if group.custom_settings:
+            tc.update(dict(group.custom_settings))
+
+        if saved_uh: tc["uh_number"] = saved_uh
+        if saved_guest: tc["guest_name"] = saved_guest
+        if saved_status: tc["room_status"] = saved_status
+        if saved_title: tc["welcome_title"] = saved_title
+        if saved_cleanup is not None: tc["checkout_cleanup_pending"] = saved_cleanup
+
+        tv.custom_settings = tc
+        tv.updated_at = now_utc
 
     await record_audit_log(
         db=db,

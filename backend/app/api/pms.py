@@ -323,6 +323,7 @@ async def manual_sync_uh(payload: ManualPMSSyncRequest, request: Request, db: As
         current_settings.pop("guest_name", None)
         current_settings["room_status"] = "Vacant"
         current_settings["welcome_title"] = payload.welcome_title or "Seja Bem-vindo(a) ao Fasano"
+        current_settings["checkout_cleanup_pending"] = True
         new_status = "Vacant"
 
     if payload.welcome_subtitle:

@@ -51,6 +51,9 @@ backend_files = [
     ("backend/app/services/fias_service.py", "/opt/smarttv/backend/app/services/fias_service.py"),
     ("backend/app/api/pms.py", "/opt/smarttv/backend/app/api/pms.py"),
     ("backend/app/api/tvs.py", "/opt/smarttv/backend/app/api/tvs.py"),
+    ("backend/app/api/groups.py", "/opt/smarttv/backend/app/api/groups.py"),
+    ("backend/app/models/schema.py", "/opt/smarttv/backend/app/models/schema.py"),
+    ("backend/app/models/dto.py", "/opt/smarttv/backend/app/models/dto.py"),
     ("backend/requirements.txt", "/opt/smarttv/backend/requirements.txt")
 ]
 

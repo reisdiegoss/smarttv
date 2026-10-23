@@ -31,6 +31,7 @@ import com.smarttv.launcher.R
 import com.smarttv.launcher.SmartTVApp
 import com.smarttv.launcher.data.api.TVApiService
 import com.smarttv.launcher.data.model.*
+import com.smarttv.launcher.manager.AppCleanupManager
 import com.smarttv.launcher.manager.AppLauncherManager
 import com.smarttv.launcher.manager.HdmiInputManager
 import com.smarttv.launcher.player.VideoCacheManager
@@ -123,6 +124,7 @@ class MainActivity : AppCompatActivity() {
     private var isPollingPairStatus = false
     private var pairPollRunnable: Runnable? = null
     private var currentLoadedMediaUrls: List<String> = emptyList()
+    private var pendingCleanupReport = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -540,6 +542,21 @@ class MainActivity : AppCompatActivity() {
             showPairingScreen()
         }
 
+        dialogView.findViewById<Button>(R.id.btnActionCleanApps)?.setOnClickListener {
+            dialog.dismiss()
+            Toast.makeText(this, "Iniciando limpeza de cache e dados dos apps...", Toast.LENGTH_SHORT).show()
+            lifecycleScope.launch(Dispatchers.IO) {
+                val appPackages = currentConfig?.shortcuts?.map { it.packageName } ?: emptyList()
+                AppCleanupManager.clearGuestAppData(this@MainActivity, appPackages)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "🧹 Dados e cache de apps limpos com sucesso!", Toast.LENGTH_LONG).show()
+                    if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
+                        exoPlayer?.play()
+                    }
+                }
+            }
+        }
+
         dialogView.findViewById<Button>(R.id.btnActionDismiss).setOnClickListener {
             dialog.dismiss()
             if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
@@ -664,24 +681,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Launcher Home: Botão Voltar (BACK) em modo kiosk
-     */
-    override fun onBackPressed() {
-        if (layoutPairing.visibility == View.VISIBLE) {
-            if (SmartTVApp.instance.isPaired()) {
-                showLauncherScreen()
-            }
-        } else {
-            // No Launcher principal: garante que a dock reapareça se oculta e nunca fecha o app
-            // Evita disparar telas ou diálogos invasivos ao retornar de entradas HDMI
-            if (!isDockVisible) {
-                layoutDock.visibility = View.VISIBLE
-                isDockVisible = true
-            }
-            resetAutoHideTimer()
-        }
-    }
+
 
     /**
      * Configura ouvintes dos botões de ajustes rápidos na tela da TV
@@ -1082,6 +1082,15 @@ class MainActivity : AppCompatActivity() {
             val weatherTemp = (custom["weather_temp"] as? String)?.trim() ?: "28°C"
             val weatherCond = (custom["weather_condition"] as? String)?.trim()?.lowercase() ?: "sunny"
 
+            // Tamanho Dinâmico da Previsão do Tempo
+            val weatherFontSize = when (val s = custom["weather_font_size"]) {
+                is Number -> s.toInt().coerceIn(14, 42)
+                is String -> (s.toIntOrNull() ?: 20).coerceIn(14, 42)
+                else -> 20
+            }
+            tvWeatherTemp.setTextSize(TypedValue.COMPLEX_UNIT_SP, (weatherFontSize * 0.82f).coerceAtLeast(14f))
+            tvWeatherCity.setTextSize(TypedValue.COMPLEX_UNIT_SP, (weatherFontSize * 0.55f).coerceAtLeast(10f))
+
             tvWeatherTemp.text = weatherTemp
             tvWeatherCity.text = weatherCity
 
@@ -1172,6 +1181,22 @@ class MainActivity : AppCompatActivity() {
 
         // 6. Agenda auto-hide da dock
         resetAutoHideTimer()
+
+        // 7. Limpeza Segura de Dados e Cache de Apps Pós-Checkout
+        val isCheckoutCleanupPending = custom["checkout_cleanup_pending"] as? Boolean ?: false
+        if (isCheckoutCleanupPending) {
+            Log.i(TAG, "Gatilho de Checkout detectado! Iniciando limpeza de dados e cache de apps...")
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val appPackages = config.shortcuts.map { it.packageName }
+                    AppCleanupManager.clearGuestAppData(this@MainActivity, appPackages)
+                    pendingCleanupReport = true
+                    Log.i(TAG, "Limpeza de dados pós-checkout finalizada com sucesso.")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erro durante limpeza de dados pós-checkout", e)
+                }
+            }
+        }
     }
 
     /**
@@ -1346,6 +1371,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupShortcuts(config: TVConfigResponse) {
+        // Preserva o índice do botão atualmente focado para não resetar o foco para o primeiro botão!
+        var previousFocusedIndex = -1
+        for (i in 0 until containerShortcuts.childCount) {
+            if (containerShortcuts.getChildAt(i).isFocused) {
+                previousFocusedIndex = i
+                break
+            }
+        }
+
         containerShortcuts.removeAllViews()
 
         // Tamanho Dinâmico dos Ícones e Botões da Dock
@@ -1431,7 +1465,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (containerShortcuts.childCount > 0) {
-            containerShortcuts.getChildAt(0).requestFocus()
+            val targetIndex = if (previousFocusedIndex in 0 until containerShortcuts.childCount) previousFocusedIndex else 0
+            containerShortcuts.getChildAt(targetIndex).requestFocus()
         }
     }
 
@@ -1541,9 +1576,32 @@ class MainActivity : AppCompatActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    override fun onBackPressed() {
+        if (layoutPairing.visibility == View.VISIBLE) {
+            if (SmartTVApp.instance.isPaired()) {
+                showLauncherScreen()
+            }
+            return
+        }
+        if (SmartTVApp.instance.isPaired()) {
+            promptAdminPinDialog()
+        } else {
+            togglePairingOverlay()
+        }
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Tecla MENU ou SETTINGS no controle abre o diálogo de PIN se a TV estiver pareada
-        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS) {
+        // Teclas MENU, SETTINGS, BACK / RETURN ou ESCAPE abrem o menu secreto de PIN do administrador
+        if (keyCode == KeyEvent.KEYCODE_MENU || 
+            keyCode == KeyEvent.KEYCODE_SETTINGS || 
+            keyCode == KeyEvent.KEYCODE_BACK || 
+            keyCode == KeyEvent.KEYCODE_ESCAPE) {
+            if (layoutPairing.visibility == View.VISIBLE) {
+                if (SmartTVApp.instance.isPaired()) {
+                    showLauncherScreen()
+                }
+                return true
+            }
             if (SmartTVApp.instance.isPaired()) {
                 promptAdminPinDialog()
             } else {
@@ -1600,13 +1658,18 @@ class MainActivity : AppCompatActivity() {
 
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
+                        val reportCleanup = if (pendingCleanupReport) true else null
                         val response = api.ping(
                             PingRequest(
                                 deviceId = deviceId,
                                 ipAddress = null,
-                                appVersion = "1.0.5"
+                                appVersion = "1.0.5",
+                                cleanupCompleted = reportCleanup
                             )
                         )
+                        if (reportCleanup == true) {
+                            pendingCleanupReport = false
+                        }
                         val isServerPaired = (response["is_paired"] as? Boolean) ?: false
                         val serverUpdatedAt = response["updated_at"] as? String
 

@@ -99,7 +99,21 @@
             android:textSize="14sp"
             android:textStyle="bold" />
 
-        <!-- 5. Voltar ao Vídeo / Fechar Menu -->
+        <!-- 6. Limpeza Manual de Cache & Dados dos Apps -->
+        <Button
+            android:id="@+id/btnActionCleanApps"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_chip_button"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🧹 Limpar Dados &amp; Cache de Apps Agora (Deslogar Hóspede)"
+            android:textColor="#C084FC"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- 7. Voltar ao Vídeo / Fechar Menu -->
         <Button
             android:id="@+id/btnActionDismiss"
             android:layout_width="match_parent"
