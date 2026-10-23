@@ -37,8 +37,11 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
 
   const welcomeTitle = custom.welcome_title || 'Seja Bem-vindo(a)!';
   const welcomeSubtitle = custom.welcome_subtitle || 'Aproveite o melhor do entretenimento.';
-  const wifiSsid = custom.wifi_ssid || 'SmartTV-Guest';
-  const wifiPass = custom.wifi_password || 'smarttv2026';
+  const wifiSsid = (custom.wifi_ssid || '').trim();
+  const wifiPass = (custom.wifi_password || '').trim();
+  const hasWifiQr = Boolean(custom.wifi_qrcode_url && custom.wifi_qrcode_url.trim());
+  const showWifi = custom.show_wifi !== false;
+  const hasWifiInfo = Boolean(wifiSsid || wifiPass || hasWifiQr);
   const hdmiLabel = tv?.hdmi_label || 'TV SKY';
   const hdmiInput = tv?.hdmi_input_id || 'HDMI 1';
 
@@ -358,33 +361,38 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                     )}
 
                     {/* Wi-Fi & QR Code */}
-                    <div style={{
-                      background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 12,
-                      padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-                    }}>
-                      {custom.wifi_qrcode_url ? (
-                        <img 
-                          src={custom.wifi_qrcode_url} 
-                          alt="Wi-Fi QR"
-                          style={{
-                            width: qrSizePx,
-                            height: qrSizePx,
-                            borderRadius: 6,
-                            background: '#fff',
-                            padding: 2,
-                            objectFit: 'contain'
-                          }}
-                        />
-                      ) : (
-                        <Wifi size={16} color="#34d399" />
-                      )}
-                      <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fff' }}>{wifiSsid}</div>
-                        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.6)' }}>Senha: {wifiPass}</div>
+                    {showWifi && hasWifiInfo && (
+                      <div style={{
+                        background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: 12,
+                        padding: (wifiSsid || wifiPass) ? '6px 12px' : '6px',
+                        display: 'flex', alignItems: 'center', gap: (wifiSsid || wifiPass) ? 8 : 0,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                      }}>
+                        {hasWifiQr ? (
+                          <img 
+                            src={custom.wifi_qrcode_url} 
+                            alt="Wi-Fi QR"
+                            style={{
+                              width: qrSizePx,
+                              height: qrSizePx,
+                              borderRadius: 6,
+                              background: '#fff',
+                              padding: 2,
+                              objectFit: 'contain'
+                            }}
+                          />
+                        ) : (
+                          <Wifi size={16} color="#34d399" />
+                        )}
+                        {(wifiSsid || wifiPass) && (
+                          <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
+                            {wifiSsid && <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fff' }}>{wifiSsid}</div>}
+                            {wifiPass && <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.6)' }}>Senha: {wifiPass}</div>}
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 
@@ -541,19 +549,45 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                   </div>
 
                   {/* Wi-Fi Card */}
-                  <div style={{
-                    background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)',
-                    borderRadius: 16, padding: 14, display: 'flex', alignItems: 'center', gap: 12
-                  }}>
-                    <QrCode size={36} color="#34d399" />
-                    <div>
-                      <div style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 700, textTransform: 'uppercase' }}>
-                        Wi-Fi do Quarto
-                      </div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>{wifiSsid}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)' }}>Senha: {wifiPass}</div>
+                  {showWifi && hasWifiInfo && (
+                    <div style={{
+                      background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)',
+                      borderRadius: 16, padding: 14, display: 'flex', alignItems: 'center', gap: 12
+                    }}>
+                      {hasWifiQr ? (
+                        <img 
+                          src={custom.wifi_qrcode_url} 
+                          alt="Wi-Fi QR"
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 6,
+                            background: '#fff',
+                            padding: 2,
+                            objectFit: 'contain'
+                          }}
+                        />
+                      ) : (
+                        <QrCode size={36} color="#34d399" />
+                      )}
+                      {(wifiSsid || wifiPass) ? (
+                        <div>
+                          <div style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 700, textTransform: 'uppercase' }}>
+                            Wi-Fi do Quarto
+                          </div>
+                          {wifiSsid && <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>{wifiSsid}</div>}
+                          {wifiPass && <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)' }}>Senha: {wifiPass}</div>}
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 700, textTransform: 'uppercase' }}>
+                            Wi-Fi do Quarto
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: '#fff' }}>Aponte a câmera para conectar</div>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  )}
 
                   {/* Shortcuts List */}
                   <div style={{ flex: 1 }}>
@@ -689,7 +723,7 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                     Avisos
                   </div>
                   <div style={{ color: '#fff', fontSize: '0.9rem', whiteSpace: 'nowrap', animation: 'marquee 20s linear infinite' }}>
-                    {custom.welcome_subtitle || "Café da manhã servido das 06:00 às 10:00 no restaurante principal. Conecte-se ao Wi-Fi com a senha: " + wifiPass}
+                    {custom.welcome_subtitle || (wifiPass ? "Café da manhã servido das 06:00 às 10:00 no restaurante principal. Conecte-se ao Wi-Fi com a senha: " + wifiPass : "Café da manhã servido das 06:00 às 10:00 no restaurante principal.")}
                   </div>
                 </div>
               </div>
