@@ -306,7 +306,7 @@ async def manual_sync_uh(payload: ManualPMSSyncRequest, request: Request, db: As
 
     is_checkin = payload.action.upper() != "CHECK_OUT" and bool(payload.guest_name)
     if is_checkin and payload.guest_name:
-        clean_guest = payload.guest_name.strip()
+        clean_guest = payload.guest_name.split('/')[0].strip()
         target_tv.guest_name = clean_guest
         target_tv.uh_number = clean_uh
         current_settings["guest_name"] = clean_guest
@@ -436,8 +436,10 @@ def extract_rooms_from_excel(raw_bytes: bytes) -> List[Dict[str, Any]]:
         status = str(row[col_status]).strip() if (col_status != -1 and col_status < len(row) and row[col_status] is not None) else ""
         guest = str(row[col_guest]).strip() if (col_guest != -1 and col_guest < len(row) and row[col_guest] is not None) else None
 
-        if guest and guest.lower() in ["vacant", "vago", "limpo", "sujo", "clean", "dirty", "-", "null", "none"]:
-            guest = None
+        if guest:
+            guest = guest.split('/')[0].strip()
+            if guest.lower() in ["vacant", "vago", "limpo", "sujo", "clean", "dirty", "-", "null", "none"]:
+                guest = None
 
         if not any(d["uh"] == clean_room for d in detected):
             detected.append({

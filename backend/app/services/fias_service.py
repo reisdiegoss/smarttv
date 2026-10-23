@@ -593,16 +593,15 @@ class FIASService:
                     cust["uh_number"] = clean_uh
 
                     if is_checkin and guest_name:
-                        # Se for share e já tiver outro hóspede
-                        is_share = (fields and fields.get("GS") == "Y")
+                        # Regra: quando for necessário colocar '/', mantemos apenas o que vem antes da '/'
+                        raw_guest = guest_name.split('/')[0].strip()
+
+                        # Se for share e já tiver hóspede cadastrado, preserva o hóspede principal (o primeiro cadastrado)
                         existing = target_tv.guest_name
-                        if is_share and existing and existing not in ("Hóspede", "Y", "N") and existing != guest_name:
-                            if guest_name not in existing:
-                                final_guest = f"{existing} / {guest_name}"
-                            else:
-                                final_guest = existing
+                        if existing and existing not in ("Hóspede", "Y", "N", ""):
+                            final_guest = existing.split('/')[0].strip()
                         else:
-                            final_guest = guest_name
+                            final_guest = raw_guest
 
                         target_tv.guest_name = final_guest
                         cust["guest_name"] = final_guest
@@ -631,15 +630,16 @@ class FIASService:
                 else:
                     # Se a TV NÃO existe no banco, criamos como Sem Grupo (atribuição 100% manual)
                     clean_code = f"UH-{clean_uh.zfill(4)}"
+                    clean_guest = guest_name.split('/')[0].strip() if (is_checkin and guest_name) else None
                     new_settings = {
                         "uh_number": clean_uh,
-                        "room_status": "Occupied" if (is_checkin and guest_name) else "Vacant",
-                        "welcome_title": f"Sr(a). {guest_name}, Bem-vindo(a) ao Fasano" if (is_checkin and guest_name) else "Seja Bem-vindo(a) ao Fasano",
+                        "room_status": "Occupied" if (is_checkin and clean_guest) else "Vacant",
+                        "welcome_title": f"Sr(a). {clean_guest}, Bem-vindo(a) ao Fasano" if (is_checkin and clean_guest) else "Seja Bem-vindo(a) ao Fasano",
                         "welcome_subtitle": "Aproveite a sua estadia com o melhor do entretenimento.",
                         "pin_code": "0000"
                     }
-                    if is_checkin and guest_name:
-                        new_settings["guest_name"] = guest_name
+                    if is_checkin and clean_guest:
+                        new_settings["guest_name"] = clean_guest
 
                     new_tv = SmartTV(
                         device_id=f"UH-{clean_uh}",
@@ -647,7 +647,7 @@ class FIASService:
                         room_group="Sem Grupo",
                         group_id=None,
                         uh_number=clean_uh,
-                        guest_name=guest_name if is_checkin else None,
+                        guest_name=clean_guest,
                         pms_enabled=True,
                         pin_code="0000",
                         pairing_code=clean_code,
