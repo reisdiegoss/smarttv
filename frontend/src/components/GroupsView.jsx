@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   FolderTree, Plus, Edit, Trash2, Users, Layers, Film, 
   Tv, CheckSquare, Square, Save, X, Sparkles, Key, Radio, Wifi,
-  Sliders, Type, Clock, Sun, CloudSun, Cloud, CloudRain, Moon, AlignLeft, AlignRight, RotateCw
+  Sliders, Type, Clock, Sun, CloudSun, Cloud, CloudRain, Moon, AlignLeft, AlignRight, RotateCw,
+  QrCode, Upload
 } from 'lucide-react';
 
 const POPULAR_CITIES = [
@@ -97,8 +98,41 @@ export default function GroupsView({
     auto_hide_dock: true,
     auto_hide_seconds: 15,
     volume_limit: 80,
-    pin_code: '0000'
+    pin_code: '0000',
+    wifi_qrcode_url: '',
+    wifi_qr_size: 110
   });
+
+  const [uploadingQr, setUploadingQr] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleQrUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    setUploadingQr(true);
+    try {
+      const res = await fetch('/api/media/upload-image', {
+        method: 'POST',
+        headers: fetchHeaders ? fetchHeaders() : {},
+        body: formData
+      });
+      if (!res.ok) throw new Error('Falha no upload da imagem');
+      const data = await res.json();
+      setFormCustomSettings(prev => ({ ...prev, wifi_qrcode_url: data.url }));
+    } catch (err) {
+      alert('Erro ao enviar imagem: ' + err.message);
+    } finally {
+      setUploadingQr(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveQr = () => {
+    setFormCustomSettings(prev => ({ ...prev, wifi_qrcode_url: '' }));
+  };
 
   const [weatherData, setWeatherData] = useState(null);
   const [fetchingWeather, setFetchingWeather] = useState(false);
@@ -150,6 +184,7 @@ export default function GroupsView({
       header_layout: 'welcome_left_widgets_right',
       wifi_ssid: 'Fasano-Guest',
       wifi_password: 'fasanobemvindo',
+      wifi_qrcode_url: '',
       wifi_qr_size: 110,
       auto_hide_dock: true,
       auto_hide_seconds: 15,
@@ -184,6 +219,7 @@ export default function GroupsView({
       header_layout: group.custom_settings?.header_layout || 'welcome_left_widgets_right',
       wifi_ssid: group.custom_settings?.wifi_ssid || '',
       wifi_password: group.custom_settings?.wifi_password || '',
+      wifi_qrcode_url: group.custom_settings?.wifi_qrcode_url || '',
       wifi_qr_size: group.custom_settings?.wifi_qr_size || 110,
       auto_hide_dock: group.custom_settings?.auto_hide_dock ?? true,
       auto_hide_seconds: group.custom_settings?.auto_hide_seconds || 15,
@@ -482,6 +518,17 @@ export default function GroupsView({
                       </span>
                     </div>
                   )}
+
+                  {group.custom_settings?.wifi_qrcode_url && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <QrCode size={14} color="#34d399" /> QR Code Wi-Fi:
+                      </span>
+                      <span style={{ fontWeight: 600, color: '#34d399', fontSize: '0.78rem' }}>
+                        Ativo ({group.custom_settings.wifi_qr_size || 110}px)
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* TVs Membros prévias */}
@@ -734,17 +781,117 @@ export default function GroupsView({
                         Padrão de senha herdado pelas TVs do grupo para voltar à launcher original.
                       </small>
                     </div>
-                    <div>
-                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Tamanho do QR Code (px)</label>
-                      <input 
-                        type="number"
-                        min="50"
-                        max="220"
-                        className="form-input" 
-                        value={formCustomSettings.wifi_qr_size || 110} 
-                        onChange={e => setFormCustomSettings({ ...formCustomSettings, wifi_qr_size: parseInt(e.target.value) || 110 })} 
-                        placeholder="110"
-                      />
+                  </div>
+
+                  {/* Upload da Imagem do QR Code do Wi-Fi */}
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <label className="form-label" style={{ margin: 0, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <QrCode size={15} color="#34d399" /> Imagem do QR Code de Conexão Wi-Fi
+                      </label>
+                      {formCustomSettings.wifi_qrcode_url && (
+                        <button 
+                          type="button" 
+                          onClick={handleRemoveQr} 
+                          className="btn btn-danger btn-sm"
+                          style={{ padding: '3px 8px', fontSize: '0.72rem' }}
+                        >
+                          <Trash2 size={12} /> Remover QR Code
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      {formCustomSettings.wifi_qrcode_url ? (
+                        <div style={{
+                          width: 72, height: 72, borderRadius: 10, background: '#fff',
+                          padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          border: '2px solid #34d399'
+                        }}>
+                          <img 
+                            src={formCustomSettings.wifi_qrcode_url} 
+                            alt="QR Code Wi-Fi" 
+                            style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                          />
+                        </div>
+                      ) : (
+                        <div style={{
+                          width: 72, height: 72, borderRadius: 10, background: 'rgba(255, 255, 255, 0.05)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b',
+                          border: '1px dashed rgba(255, 255, 255, 0.2)'
+                        }}>
+                          <QrCode size={30} />
+                        </div>
+                      )}
+
+                      <div style={{ flex: 1 }}>
+                        <input 
+                          type="file" 
+                          ref={fileInputRef} 
+                          onChange={handleQrUpload} 
+                          accept="image/png,image/jpeg,image/webp,image/svg+xml" 
+                          style={{ display: 'none' }} 
+                        />
+                        <button 
+                          type="button" 
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploadingQr}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                        >
+                          <Upload size={14} /> {uploadingQr ? 'Enviando imagem...' : (formCustomSettings.wifi_qrcode_url ? 'Trocar Imagem do QR Code' : 'Fazer Upload da Imagem do QR Code')}
+                        </button>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                          Envie a imagem do QR Code (.png ou .jpg). Todas as TVs deste grupo herdarão esta imagem no topo da tela.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Ajuste do Tamanho do QR Code na TV */}
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed rgba(255, 255, 255, 0.08)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <label className="form-label" style={{ margin: 0, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Sliders size={14} color="#34d399" /> Tamanho do QR Code na TV
+                        </label>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', padding: '2px 8px', borderRadius: 6 }}>
+                          {formCustomSettings.wifi_qr_size || 110} px
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <input 
+                          type="range"
+                          min="50"
+                          max="220"
+                          step="10"
+                          value={formCustomSettings.wifi_qr_size || 110}
+                          onChange={e => setFormCustomSettings({ ...formCustomSettings, wifi_qr_size: parseInt(e.target.value) })}
+                          style={{ flex: 1, accentColor: '#34d399', cursor: 'pointer' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        {[
+                          { label: 'Pequeno', size: 70 },
+                          { label: 'Médio', size: 110 },
+                          { label: 'Grande', size: 150 },
+                          { label: 'Gigante', size: 190 }
+                        ].map(preset => (
+                          <button
+                            key={preset.size}
+                            type="button"
+                            onClick={() => setFormCustomSettings({ ...formCustomSettings, wifi_qr_size: preset.size })}
+                            style={{
+                              padding: '4px 10px', fontSize: '0.75rem', borderRadius: 6, cursor: 'pointer',
+                              background: (formCustomSettings.wifi_qr_size || 110) === preset.size ? 'rgba(52, 211, 153, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                              border: (formCustomSettings.wifi_qr_size || 110) === preset.size ? '1px solid #34d399' : '1px solid rgba(255, 255, 255, 0.1)',
+                              color: (formCustomSettings.wifi_qr_size || 110) === preset.size ? '#34d399' : 'var(--text-muted)'
+                            }}
+                          >
+                            {preset.label} ({preset.size}px)
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
