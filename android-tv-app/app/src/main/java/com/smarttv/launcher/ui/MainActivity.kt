@@ -16,6 +16,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -125,6 +126,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Mantém a tela da TV sempre ligada no Launcher
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_main)
 
         // Elementos da tela de exibição (Launcher)
@@ -662,7 +665,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Launcher Home: Botão Voltar (BACK) em modo kiosk solicita PIN de saída
+     * Launcher Home: Botão Voltar (BACK) em modo kiosk
      */
     override fun onBackPressed() {
         if (layoutPairing.visibility == View.VISIBLE) {
@@ -670,11 +673,13 @@ class MainActivity : AppCompatActivity() {
                 showLauncherScreen()
             }
         } else {
-            if (SmartTVApp.instance.isPaired()) {
-                promptAdminPinDialog()
-            } else {
-                resetAutoHideTimer()
+            // No Launcher principal: garante que a dock reapareça se oculta e nunca fecha o app
+            // Evita disparar telas ou diálogos invasivos ao retornar de entradas HDMI
+            if (!isDockVisible) {
+                layoutDock.visibility = View.VISIBLE
+                isDockVisible = true
             }
+            resetAutoHideTimer()
         }
     }
 

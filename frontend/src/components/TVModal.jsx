@@ -3,8 +3,56 @@ import {
   X, Tv, Save, CheckSquare, Square, Layers, Film, Wifi, QrCode, 
   Upload, Trash2, Smartphone, Key, Eye, Sliders, User, Building, 
   Lock, FolderTree, Sun, CloudSun, Cloud, CloudRain, Moon, Clock, 
-  Type, AlignLeft, AlignRight, Sparkles
+  Type, AlignLeft, AlignRight, Sparkles, RotateCw, Tag, Activity
 } from 'lucide-react';
+
+const POPULAR_CITIES = [
+  { name: 'Salvador', state: 'BA' },
+  { name: 'Trancoso', state: 'BA' },
+  { name: 'Porto Seguro', state: 'BA' },
+  { name: 'Ilhéus', state: 'BA' },
+  { name: 'Praia do Forte', state: 'BA' },
+  { name: 'Itacaré', state: 'BA' },
+  { name: 'Morro de São Paulo', state: 'BA' },
+  { name: 'São Paulo', state: 'SP' },
+  { name: 'Rio de Janeiro', state: 'RJ' },
+  { name: 'Angra dos Reis', state: 'RJ' },
+  { name: 'Belo Horizonte', state: 'MG' },
+  { name: 'Brasília', state: 'DF' },
+  { name: 'Curitiba', state: 'PR' },
+  { name: 'Florianópolis', state: 'SC' },
+  { name: 'Fortaleza', state: 'CE' },
+  { name: 'Recife', state: 'PE' },
+  { name: 'Natal', state: 'RN' },
+  { name: 'Gramado', state: 'RS' }
+];
+
+const renderWeatherIcon = (condition, size = 20) => {
+  switch (condition) {
+    case 'partly_cloudy':
+      return <CloudSun size={size} color="#60a5fa" />;
+    case 'cloudy':
+      return <Cloud size={size} color="#94a3b8" />;
+    case 'rain':
+      return <CloudRain size={size} color="#38bdf8" />;
+    case 'clear_night':
+      return <Moon size={size} color="#c084fc" />;
+    case 'sunny':
+    default:
+      return <Sun size={size} color="#fbbf24" />;
+  }
+};
+
+const getConditionLabel = (condition) => {
+  switch (condition) {
+    case 'partly_cloudy': return 'Parcialmente Nublado';
+    case 'cloudy': return 'Nublado';
+    case 'rain': return 'Chuvoso';
+    case 'clear_night': return 'Céu Limpo';
+    case 'sunny':
+    default: return 'Ensolarado';
+  }
+};
 
 export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlists, shortcuts, groups = [] }) {
   const [pmsEnabled, setPmsEnabled] = useState(true);
@@ -42,7 +90,32 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
     admin_exit_pin: '0000'
   });
   const [uploadingQr, setUploadingQr] = useState(false);
+  const [fetchingWeather, setFetchingWeather] = useState(false);
   const fileInputRef = useRef(null);
+
+  const [weatherData, setWeatherData] = useState(null);
+
+  const handleFetchCityWeather = async (cityName) => {
+    const city = cityName || customSettings.weather_city || 'Salvador';
+    setFetchingWeather(true);
+    try {
+      const res = await fetch(`/api/tvs/weather?city=${encodeURIComponent(city)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWeatherData(data);
+        setCustomSettings(prev => ({
+          ...prev,
+          weather_city: data.city || city,
+          weather_temp: data.temperature || '28°C',
+          weather_condition: data.condition || 'sunny'
+        }));
+      }
+    } catch (e) {
+      console.error('Erro ao buscar clima:', e);
+    } finally {
+      setFetchingWeather(false);
+    }
+  };
 
   const appShortcuts = shortcuts.filter(s => !s.is_hdmi);
 
@@ -130,6 +203,8 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
         auto_hide_seconds: 15,
         uh_number: '',
         guest_name: '',
+        room_type: '',
+        room_status: '',
         admin_exit_pin: '0000'
       });
     }
@@ -402,6 +477,32 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                           welcome_title: gName ? `Sr(a). ${gName}, Bem-vindo(a) ao Fasano` : (customSettings.welcome_title || 'Seja Bem-vindo(a)!')
                         });
                       }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#60a5fa' }}>
+                      <Tag size={14} /> Categoria da UH (room_type)
+                    </label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Ex: SWC, SUP, SJR, DLXM, TWD, DLX"
+                      value={customSettings.room_type || ''}
+                      onChange={e => setCustomSettings({ ...customSettings, room_type: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#a78bfa' }}>
+                      <Activity size={14} /> Status UH (room_status)
+                    </label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Ex: Vacant, Occupied, Clean"
+                      value={customSettings.room_status || ''}
+                      onChange={e => setCustomSettings({ ...customSettings, room_status: e.target.value })}
                     />
                   </div>
                 </>
@@ -991,64 +1092,106 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                   </div>
 
                   {customSettings.show_weather !== false && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        <div>
-                          <label className="form-label" style={{ fontSize: '0.74rem' }}>Cidade</label>
-                          <input 
-                            type="text"
-                            className="form-input"
-                            value={customSettings.weather_city || 'Salvador'}
-                            onChange={e => setCustomSettings({ ...customSettings, weather_city: e.target.value })}
-                            placeholder="Ex: Salvador ou São Paulo"
-                            style={{ fontSize: '0.8rem', padding: '6px 10px' }}
-                          />
-                        </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {/* Seleção do Município */}
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.76rem' }}>
+                          Município / Cidade
+                        </label>
+                        <select 
+                          className="form-select"
+                          style={{ fontSize: '0.82rem', padding: '7px 10px' }}
+                          value={
+                            POPULAR_CITIES.some(c => c.name.toLowerCase() === (customSettings.weather_city || '').toLowerCase())
+                              ? POPULAR_CITIES.find(c => c.name.toLowerCase() === (customSettings.weather_city || '').toLowerCase()).name
+                              : 'CUSTOM'
+                          }
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val !== 'CUSTOM') {
+                              setCustomSettings(prev => ({ ...prev, weather_city: val }));
+                              handleFetchCityWeather(val);
+                            }
+                          }}
+                        >
+                          <option value="" disabled>Selecione o Município...</option>
+                          {POPULAR_CITIES.map(c => (
+                            <option key={c.name} value={c.name}>{c.name} - {c.state}</option>
+                          ))}
+                          <option value="CUSTOM">Outro Município (Digitar)...</option>
+                        </select>
 
-                        <div>
-                          <label className="form-label" style={{ fontSize: '0.74rem' }}>Temperatura de Exibição</label>
-                          <input 
-                            type="text"
-                            className="form-input"
-                            value={customSettings.weather_temp || '28°C'}
-                            onChange={e => setCustomSettings({ ...customSettings, weather_temp: e.target.value })}
-                            placeholder="Ex: 28°C"
-                            style={{ fontSize: '0.8rem', padding: '6px 10px' }}
-                          />
-                        </div>
+                        {/* Campo de texto livre para qualquer município */}
+                        {(!POPULAR_CITIES.some(c => c.name.toLowerCase() === (customSettings.weather_city || '').toLowerCase())) && (
+                          <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Digite o nome de qualquer cidade/município"
+                              value={customSettings.weather_city || ''} 
+                              onChange={e => setCustomSettings({ ...customSettings, weather_city: e.target.value })}
+                              style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => handleFetchCityWeather(customSettings.weather_city)}
+                              disabled={fetchingWeather}
+                              style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem' }}
+                            >
+                              <RotateCw size={12} className={fetchingWeather ? 'spin' : ''} />
+                              Buscar
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      <div>
-                        <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 6 }}>Condição Climática / Ícone na TV</label>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 6 }}>
-                          {[
-                            { id: 'sunny', label: 'Ensolarado', icon: Sun, color: '#fbbf24' },
-                            { id: 'partly_cloudy', label: 'Parc. Nublado', icon: CloudSun, color: '#60a5fa' },
-                            { id: 'cloudy', label: 'Nublado', icon: Cloud, color: '#94a3b8' },
-                            { id: 'rain', label: 'Chuvoso', icon: CloudRain, color: '#38bdf8' },
-                            { id: 'clear_night', label: 'Noite Limpa', icon: Moon, color: '#c084fc' }
-                          ].map(cond => {
-                            const IconComponent = cond.icon;
-                            const isSel = (customSettings.weather_condition || 'sunny') === cond.id;
-                            return (
-                              <button
-                                key={cond.id}
-                                type="button"
-                                onClick={() => setCustomSettings({ ...customSettings, weather_condition: cond.id })}
-                                style={{
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                                  padding: '6px 8px', borderRadius: 8, cursor: 'pointer',
-                                  background: isSel ? 'rgba(251, 191, 36, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                                  border: isSel ? '1px solid #fbbf24' : '1px solid rgba(255, 255, 255, 0.08)',
-                                  color: isSel ? '#fbbf24' : '#94a3b8', fontSize: '0.72rem', fontWeight: 600
-                                }}
-                              >
-                                <IconComponent size={14} color={cond.color} />
-                                <span>{cond.label}</span>
-                              </button>
-                            );
-                          })}
+                      {/* Card de Clima em Tempo Real Automatizado via API */}
+                      <div style={{
+                        background: 'rgba(15, 23, 42, 0.7)',
+                        border: '1px solid rgba(59, 130, 246, 0.35)',
+                        borderRadius: 10,
+                        padding: '10px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 10
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{
+                            width: 40, height: 40, borderRadius: 10,
+                            background: 'rgba(251, 191, 36, 0.15)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          }}>
+                            {renderWeatherIcon(weatherData?.condition || customSettings.weather_condition, 22)}
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                              <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>
+                                {weatherData?.temperature || customSettings.weather_temp || '28°C'}
+                              </span>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#93c5fd' }}>
+                                {weatherData?.condition_label || getConditionLabel(customSettings.weather_condition)}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                              {customSettings.weather_city || 'Salvador'} • Puxado automaticamente via Open-Meteo API
+                            </div>
+                          </div>
                         </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleFetchCityWeather(customSettings.weather_city)}
+                          disabled={fetchingWeather}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.74rem', padding: '4px 8px' }}
+                          title="Atualizar dados climáticos em tempo real agora"
+                        >
+                          <RotateCw size={12} className={fetchingWeather ? 'spin' : ''} />
+                          {fetchingWeather ? 'Sincronizando...' : 'Atualizar'}
+                        </button>
                       </div>
                     </div>
                   )}

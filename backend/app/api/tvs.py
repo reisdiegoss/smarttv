@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.schema import SmartTV, TVGroup, LayoutPreset, Playlist, PlaylistItem, AppShortcut, DeviceLog
 from app.services.audit import record_audit_log
+from app.services.weather_service import weather_service
 from app.models.dto import (
     SmartTVOut, SmartTVCreate, SmartTVUpdate,
     SmartTVPairRequest, SmartTVClaimRequest, SmartTVPingRequest,
@@ -18,6 +19,18 @@ from app.models.dto import (
 )
 
 router = APIRouter(prefix="/tvs", tags=["Smart TVs"])
+
+@router.get("/weather")
+@router.get("/weather/{city_name}")
+async def get_city_weather(city_name: Optional[str] = None, city: Optional[str] = None):
+    """Retorna a previsão do tempo em tempo real para qualquer município via Open-Meteo API"""
+    target = city_name or city or "Salvador"
+    return await weather_service.get_city_weather(target)
+
+@router.get("/weather/salvador")
+async def get_current_salvador_weather():
+    """Retorna a previsão do tempo em tempo real para Salvador-BA via Open-Meteo"""
+    return await weather_service.get_salvador_weather()
 
 def generate_pairing_code() -> str:
     letters = "".join(random.choices(string.ascii_uppercase, k=2))
@@ -145,9 +158,10 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
     result = await db.execute(
         select(SmartTV)
         .options(
-            selectinload(SmartTV.group),
+            selectinload(SmartTV.group).selectinload(TVGroup.layout),
+            selectinload(SmartTV.group).selectinload(TVGroup.playlist),
             selectinload(SmartTV.layout),
-            selectinload(SmartTV.playlist)
+            selectinload(SmartTV.playlist).selectinload(Playlist.items).selectinload(PlaylistItem.media)
         )
         .where(SmartTV.id == tv_id)
     )
@@ -290,12 +304,20 @@ async def update_tv(tv_id: int, payload: SmartTVUpdate, request: Request, db: As
     result = await db.execute(
         select(SmartTV)
         .options(
+            selectinload(SmartTV.group).selectinload(TVGroup.layout),
+            selectinload(SmartTV.group).selectinload(TVGroup.playlist),
             selectinload(SmartTV.layout),
             selectinload(SmartTV.playlist).selectinload(Playlist.items).selectinload(PlaylistItem.media)
         )
         .where(SmartTV.id == tv.id)
     )
-    return result.scalar_one()
+    updated_tv = result.scalar_one()
+    updated_tv.group_name = updated_tv.group.name if updated_tv.group else None
+    if updated_tv.last_ping:
+        updated_tv.is_online = (datetime.utcnow() - updated_tv.last_ping) < timedelta(seconds=90)
+    else:
+        updated_tv.is_online = False
+    return updated_tv
 
 @router.delete("/{tv_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tv(tv_id: int, request: Request, db: AsyncSession = Depends(get_db)):
@@ -721,6 +743,18 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
     # Senha de saída para launcher original (PIN do painel)
     effective_pin = tv.pin_code or merged_settings.get("pin_code") or (grp.custom_settings.get("pin_code") if grp and grp.custom_settings else "0000") or "0000"
     merged_settings["pin_code"] = effective_pin
+
+    # 1.1 Clima em Tempo Real Automatizado por Cidade / Município via Open-Meteo API
+    if merged_settings.get("show_weather") is not False:
+        target_city = merged_settings.get("weather_city") or "Salvador"
+        try:
+            live_weather = await weather_service.get_city_weather(target_city)
+            merged_settings["weather_city"] = live_weather.get("city", target_city)
+            merged_settings["weather_temp"] = live_weather["temperature"]
+            merged_settings["weather_condition"] = live_weather["condition"]
+            merged_settings["weather_updated_at"] = live_weather["updated_at"]
+        except Exception:
+            pass
 
     # 2. Atalhos com Herança
     effective_shortcut_ids = None

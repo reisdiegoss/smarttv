@@ -2,8 +2,56 @@ import React, { useState } from 'react';
 import { 
   FolderTree, Plus, Edit, Trash2, Users, Layers, Film, 
   Tv, CheckSquare, Square, Save, X, Sparkles, Key, Radio, Wifi,
-  Sliders, Type, Clock, Sun, CloudSun, Cloud, CloudRain, Moon, AlignLeft, AlignRight
+  Sliders, Type, Clock, Sun, CloudSun, Cloud, CloudRain, Moon, AlignLeft, AlignRight, RotateCw
 } from 'lucide-react';
+
+const POPULAR_CITIES = [
+  { name: 'Salvador', state: 'BA' },
+  { name: 'Trancoso', state: 'BA' },
+  { name: 'Porto Seguro', state: 'BA' },
+  { name: 'Ilhéus', state: 'BA' },
+  { name: 'Praia do Forte', state: 'BA' },
+  { name: 'Itacaré', state: 'BA' },
+  { name: 'Morro de São Paulo', state: 'BA' },
+  { name: 'São Paulo', state: 'SP' },
+  { name: 'Rio de Janeiro', state: 'RJ' },
+  { name: 'Angra dos Reis', state: 'RJ' },
+  { name: 'Belo Horizonte', state: 'MG' },
+  { name: 'Brasília', state: 'DF' },
+  { name: 'Curitiba', state: 'PR' },
+  { name: 'Florianópolis', state: 'SC' },
+  { name: 'Fortaleza', state: 'CE' },
+  { name: 'Recife', state: 'PE' },
+  { name: 'Natal', state: 'RN' },
+  { name: 'Gramado', state: 'RS' }
+];
+
+const renderWeatherIcon = (condition, size = 20) => {
+  switch (condition) {
+    case 'partly_cloudy':
+      return <CloudSun size={size} color="#60a5fa" />;
+    case 'cloudy':
+      return <Cloud size={size} color="#94a3b8" />;
+    case 'rain':
+      return <CloudRain size={size} color="#38bdf8" />;
+    case 'clear_night':
+      return <Moon size={size} color="#c084fc" />;
+    case 'sunny':
+    default:
+      return <Sun size={size} color="#fbbf24" />;
+  }
+};
+
+const getConditionLabel = (condition) => {
+  switch (condition) {
+    case 'partly_cloudy': return 'Parcialmente Nublado';
+    case 'cloudy': return 'Nublado';
+    case 'rain': return 'Chuvoso';
+    case 'clear_night': return 'Céu Limpo';
+    case 'sunny':
+    default: return 'Ensolarado';
+  }
+};
 
 export default function GroupsView({ 
   groups = [], 
@@ -14,6 +62,7 @@ export default function GroupsView({
   onRefresh, 
   fetchHeaders 
 }) {
+  const appShortcuts = (shortcuts || []).filter(s => !s.is_hdmi);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
@@ -51,7 +100,32 @@ export default function GroupsView({
     pin_code: '0000'
   });
 
-  const appShortcuts = shortcuts.filter(s => !s.is_hdmi);
+  const [weatherData, setWeatherData] = useState(null);
+  const [fetchingWeather, setFetchingWeather] = useState(false);
+
+  const handleFetchCityWeather = async (cityName) => {
+    const city = cityName || formCustomSettings.weather_city || 'Salvador';
+    setFetchingWeather(true);
+    try {
+      const res = await fetch(`/api/tvs/weather?city=${encodeURIComponent(city)}`, {
+        headers: fetchHeaders ? fetchHeaders() : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWeatherData(data);
+        setFormCustomSettings(prev => ({
+          ...prev,
+          weather_city: data.city || city,
+          weather_temp: data.temperature || '28°C',
+          weather_condition: data.condition || 'sunny'
+        }));
+      }
+    } catch (e) {
+      console.error('Erro ao buscar clima:', e);
+    } finally {
+      setFetchingWeather(false);
+    }
+  };
 
   const openCreateModal = () => {
     setSelectedGroup(null);
@@ -83,6 +157,7 @@ export default function GroupsView({
       pin_code: '0000'
     });
     setIsModalOpen(true);
+    handleFetchCityWeather('Salvador');
   };
 
   const openEditModal = (group) => {
@@ -94,6 +169,7 @@ export default function GroupsView({
     setFormHdmiInputId(group.hdmi_input_id || 'HDMI 1');
     setFormHdmiLabel(group.hdmi_label || 'TV SKY');
     setFormShortcuts(group.selected_shortcuts || []);
+    const initialCity = group.custom_settings?.weather_city || 'Salvador';
     setFormCustomSettings({
       welcome_title: group.custom_settings?.welcome_title || 'Seja Bem-vindo(a)!',
       welcome_subtitle: group.custom_settings?.welcome_subtitle || 'Aproveite a sua estadia com o melhor do entretenimento.',
@@ -101,7 +177,7 @@ export default function GroupsView({
       show_clock: group.custom_settings?.show_clock ?? true,
       clock_font_size: group.custom_settings?.clock_font_size || 24,
       show_weather: group.custom_settings?.show_weather ?? true,
-      weather_city: group.custom_settings?.weather_city || 'Salvador',
+      weather_city: initialCity,
       weather_temp: group.custom_settings?.weather_temp || '28°C',
       weather_condition: group.custom_settings?.weather_condition || 'sunny',
       dock_icon_size: group.custom_settings?.dock_icon_size || 72,
@@ -116,6 +192,7 @@ export default function GroupsView({
       ...(group.custom_settings || {})
     });
     setIsModalOpen(true);
+    handleFetchCityWeather(initialCity);
   };
 
   const handleSaveGroup = async (e) => {
@@ -472,50 +549,77 @@ export default function GroupsView({
         </div>
       )}
 
-      {/* Modal de Criação / Edição de Grupo */}
+      {/* Modal de Criação / Edição de Grupo (Padrão Visual Alinhado ao TVModal) */}
       {isModalOpen && (
-        <div className="modal-overlay" style={{ animation: 'fadeIn 0.2s ease' }}>
-          <div className="modal-content" style={{ maxWidth: 640 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FolderTree size={20} color="var(--primary)" />
-                {selectedGroup ? `Editar Grupo: ${selectedGroup.name}` : 'Novo Grupo de TVs'}
-              </h3>
-              <button className="btn-icon" onClick={() => setIsModalOpen(false)}>
+        <div className="modal-overlay" style={{ animation: 'fadeIn 0.2s ease' }} onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 660, maxHeight: '92vh', overflowY: 'auto' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 10, background: 'rgba(59, 130, 246, 0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60a5fa'
+                }}>
+                  <FolderTree size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', color: '#fff', margin: 0 }}>
+                    {selectedGroup ? `Configurar Grupo: ${selectedGroup.name}` : 'Cadastrar Novo Grupo de TVs'}
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                    Personalize o layout visual, vídeos em loop, rede Wi-Fi, atalhos e widgets para este grupo.
+                  </p>
+                </div>
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => setIsModalOpen(false)} style={{ padding: 6 }}>
                 <X size={18} />
               </button>
             </div>
 
             <form onSubmit={handleSaveGroup}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <label className="form-label">Nome do Grupo *</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    value={formName} 
-                    onChange={e => setFormName(e.target.value)} 
-                    placeholder="Ex: TV Lobby, TV Quartos Standard, TV Vista Mar"
-                    required
-                  />
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 16 }}>
+                {/* 1. Identificação do Grupo */}
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 14,
+                  padding: 16
+                }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <FolderTree size={16} color="#60a5fa" /> Identificação do Perfil de Grupo
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <label className="form-label">Nome do Grupo *</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={formName} 
+                        onChange={e => setFormName(e.target.value)} 
+                        placeholder="Ex: TV Quartos Standard, TV Vista Mar, TV Suítes"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label">Descrição do Grupo</label>
+                      <textarea 
+                        className="form-textarea" 
+                        rows={2}
+                        value={formDescription} 
+                        onChange={e => setFormDescription(e.target.value)} 
+                        placeholder="Ex: Televisores das suítes e apartamentos com padrão de hotelaria."
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="form-label">Descrição do Grupo</label>
-                  <textarea 
-                    className="form-control" 
-                    rows={2}
-                    value={formDescription} 
-                    onChange={e => setFormDescription(e.target.value)} 
-                    placeholder="Ex: Televisores das suítes de frente para o mar com serviços VIP."
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {/* 2. Modelo de Layout e Playlist de Vídeos */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div>
-                    <label className="form-label">Modelo de Layout Padrão</label>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Layers size={14} color="#60a5fa" /> Modelo de Layout Padrão
+                    </label>
                     <select 
-                      className="form-control"
+                      className="form-select"
                       value={formLayoutId}
                       onChange={e => setFormLayoutId(e.target.value)}
                     >
@@ -526,118 +630,360 @@ export default function GroupsView({
                   </div>
 
                   <div>
-                    <label className="form-label">Playlist Padrão</label>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Film size={14} color="#f59e0b" /> Playlist de Vídeos em Loop
+                    </label>
                     <select 
-                      className="form-control"
+                      className="form-select"
                       value={formPlaylistId}
                       onChange={e => setFormPlaylistId(e.target.value)}
                     >
+                      <option value="">Nenhum vídeo em loop (Fundo escuro)</option>
                       {playlists.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
+                        <option key={p.id} value={p.id}>{p.name} ({p.items?.length || 0} vídeos)</option>
                       ))}
                     </select>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label className="form-label">Entrada HDMI Padrão</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={formHdmiInputId} 
-                      onChange={e => setFormHdmiInputId(e.target.value)} 
-                      placeholder="Ex: HDMI 1"
-                    />
+                {/* 3. Entrada HDMI (SKY / Receptor) */}
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.06)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  borderRadius: 14,
+                  padding: 16
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Tv size={18} color="#ef4444" />
+                    <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#f87171' }}>
+                      Entrada HDMI Padrão (TV SKY / Receptor)
+                    </span>
                   </div>
-
-                  <div>
-                    <label className="form-label">Nome do Botão HDMI</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={formHdmiLabel} 
-                      onChange={e => setFormHdmiLabel(e.target.value)} 
-                      placeholder="Ex: TV SKY"
-                    />
-                  </div>
-                </div>
-
-                {/* Senha PIN de saída e Wi-Fi */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label className="form-label">Senha PIN de Saída do App *</label>
-                    <input 
-                      type="text" 
-                      maxLength={6}
-                      className="form-control" 
-                      value={formCustomSettings.pin_code || ''} 
-                      onChange={e => setFormCustomSettings({ ...formCustomSettings, pin_code: e.target.value })} 
-                      placeholder="Ex: 0000"
-                      title="Senha solicitada no app para fechar e voltar à launcher original"
-                    />
-                    <small style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
-                      Padrão de senha herdado pelas TVs do grupo.
-                    </small>
-                  </div>
-
-                  <div>
-                    <label className="form-label">Rede Wi-Fi (SSID)</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={formCustomSettings.wifi_ssid || ''} 
-                      onChange={e => setFormCustomSettings({ ...formCustomSettings, wifi_ssid: e.target.value })} 
-                      placeholder="Ex: Fasano-Guest"
-                    />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Rótulo do Botão na TV</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={formHdmiLabel} 
+                        onChange={e => setFormHdmiLabel(e.target.value)} 
+                        placeholder="Ex: TV SKY"
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Porta HDMI Conectada</label>
+                      <select 
+                        className="form-select"
+                        value={formHdmiInputId}
+                        onChange={e => setFormHdmiInputId(e.target.value)}
+                      >
+                        <option value="HDMI 1">HDMI 1</option>
+                        <option value="HDMI 2">HDMI 2 (Recomendado Sky)</option>
+                        <option value="HDMI 3">HDMI 3</option>
+                        <option value="HDMI 4">HDMI 4</option>
+                        <option value="HW1">HW1 (Passthrough Direto)</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label className="form-label">Senha do Wi-Fi</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      value={formCustomSettings.wifi_password || ''} 
-                      onChange={e => setFormCustomSettings({ ...formCustomSettings, wifi_password: e.target.value })} 
-                      placeholder="Ex: fasanobemvindo"
-                    />
+                {/* 4. Rede Wi-Fi & Segurança PIN */}
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 14,
+                  padding: 16
+                }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Wifi size={16} color="#10b981" /> Wi-Fi dos Quartos & Segurança PIN
                   </div>
-
-                  <div>
-                    <label className="form-label">Tamanho do QR Code (se houver)</label>
-                    <input 
-                      type="number"
-                      min="50"
-                      max="220"
-                      className="form-control" 
-                      value={formCustomSettings.wifi_qr_size || 110} 
-                      onChange={e => setFormCustomSettings({ ...formCustomSettings, wifi_qr_size: parseInt(e.target.value) || 110 })} 
-                      placeholder="110"
-                    />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 12 }}>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Rede Wi-Fi (SSID)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={formCustomSettings.wifi_ssid || ''} 
+                        onChange={e => setFormCustomSettings({ ...formCustomSettings, wifi_ssid: e.target.value })} 
+                        placeholder="Ex: Fasano-Guest"
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Senha do Wi-Fi</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={formCustomSettings.wifi_password || ''} 
+                        onChange={e => setFormCustomSettings({ ...formCustomSettings, wifi_password: e.target.value })} 
+                        placeholder="Ex: fasanobemvindo"
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Senha PIN de Saída do App *</label>
+                      <input 
+                        type="text" 
+                        maxLength={6}
+                        className="form-input" 
+                        value={formCustomSettings.pin_code || ''} 
+                        onChange={e => setFormCustomSettings({ ...formCustomSettings, pin_code: e.target.value })} 
+                        placeholder="Ex: 0000"
+                      />
+                      <small style={{ color: 'var(--text-muted)', fontSize: '0.72rem', display: 'block', marginTop: 4 }}>
+                        Padrão de senha herdado pelas TVs do grupo para voltar à launcher original.
+                      </small>
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Tamanho do QR Code (px)</label>
+                      <input 
+                        type="number"
+                        min="50"
+                        max="220"
+                        className="form-input" 
+                        value={formCustomSettings.wifi_qr_size || 110} 
+                        onChange={e => setFormCustomSettings({ ...formCustomSettings, wifi_qr_size: parseInt(e.target.value) || 110 })} 
+                        placeholder="110"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="form-label">Título de Boas-vindas Padrão</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    value={formCustomSettings.welcome_title || ''} 
-                    onChange={e => setFormCustomSettings({ ...formCustomSettings, welcome_title: e.target.value })} 
-                    placeholder="Ex: Seja Bem-vindo(a) ao Fasano"
-                  />
-                  <small style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
-                    Se a TV tiver hóspede vinculado pelo PMS IFC8, ela personalizará automaticamente com o nome dele.
-                  </small>
+                {/* 5. Mensagem de Boas-Vindas Padrão */}
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 14,
+                  padding: 16
+                }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Type size={16} color="#f59e0b" /> Mensagem de Boas-Vindas Padrão
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Título de Boas-vindas</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={formCustomSettings.welcome_title || ''} 
+                        onChange={e => setFormCustomSettings({ ...formCustomSettings, welcome_title: e.target.value })} 
+                        placeholder="Ex: Seja Bem-vindo(a) ao Fasano"
+                      />
+                      <small style={{ color: 'var(--text-muted)', fontSize: '0.72rem', display: 'block', marginTop: 4 }}>
+                        Personalizado automaticamente com o nome do hóspede quando sincronizado via Opera PMS / IFC8.
+                      </small>
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Subtítulo da Tela</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={formCustomSettings.welcome_subtitle || ''} 
+                        onChange={e => setFormCustomSettings({ ...formCustomSettings, welcome_subtitle: e.target.value })} 
+                        placeholder="Ex: Aproveite a sua estadia com o melhor do entretenimento."
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* PAINEL DE AJUSTE DE TAMANHOS, POSIÇÕES & WIDGETS DO GRUPO */}
+                {/* 6. Widget de Previsão do Tempo Automático por Município (Open-Meteo API) */}
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 14,
+                  padding: 16
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Sun size={18} color="#fbbf24" />
+                      <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#fff' }}>
+                        Widget de Previsão do Tempo (Automático via API)
+                      </span>
+                    </div>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.8rem', color: '#fff' }}>
+                      <input 
+                        type="checkbox"
+                        checked={formCustomSettings.show_weather !== false}
+                        onChange={e => setFormCustomSettings({ ...formCustomSettings, show_weather: e.target.checked })}
+                        style={{ accentColor: '#fbbf24' }}
+                      />
+                      <span>Exibir na TV</span>
+                    </label>
+                  </div>
+
+                  {formCustomSettings.show_weather !== false && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {/* Seleção do Município */}
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.8rem' }}>
+                          Município / Cidade do Hotel
+                        </label>
+                        <select 
+                          className="form-select"
+                          value={
+                            POPULAR_CITIES.some(c => c.name.toLowerCase() === (formCustomSettings.weather_city || '').toLowerCase())
+                              ? POPULAR_CITIES.find(c => c.name.toLowerCase() === (formCustomSettings.weather_city || '').toLowerCase()).name
+                              : 'CUSTOM'
+                          }
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val !== 'CUSTOM') {
+                              setFormCustomSettings(prev => ({ ...prev, weather_city: val }));
+                              handleFetchCityWeather(val);
+                            }
+                          }}
+                        >
+                          <option value="" disabled>Selecione o Município...</option>
+                          {POPULAR_CITIES.map(c => (
+                            <option key={c.name} value={c.name}>{c.name} - {c.state}</option>
+                          ))}
+                          <option value="CUSTOM">Outro Município (Digitar)...</option>
+                        </select>
+
+                        {/* Campo de texto livre para qualquer município */}
+                        {(!POPULAR_CITIES.some(c => c.name.toLowerCase() === (formCustomSettings.weather_city || '').toLowerCase())) && (
+                          <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              placeholder="Digite o nome de qualquer cidade/município"
+                              value={formCustomSettings.weather_city || ''} 
+                              onChange={e => setFormCustomSettings({ ...formCustomSettings, weather_city: e.target.value })}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => handleFetchCityWeather(formCustomSettings.weather_city)}
+                              disabled={fetchingWeather}
+                              style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <RotateCw size={13} className={fetchingWeather ? 'spin' : ''} />
+                              Buscar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Card de Clima em Tempo Real Automatizado via API */}
+                      <div style={{
+                        background: 'rgba(15, 23, 42, 0.7)',
+                        border: '1px solid rgba(59, 130, 246, 0.35)',
+                        borderRadius: 12,
+                        padding: '14px 18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 12
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                          <div style={{
+                            width: 48, height: 48, borderRadius: 12,
+                            background: 'rgba(251, 191, 36, 0.15)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          }}>
+                            {renderWeatherIcon(weatherData?.condition || formCustomSettings.weather_condition, 26)}
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                              <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#fff' }}>
+                                {weatherData?.temperature || formCustomSettings.weather_temp || '28°C'}
+                              </span>
+                              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#93c5fd' }}>
+                                {weatherData?.condition_label || getConditionLabel(formCustomSettings.weather_condition)}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                              {formCustomSettings.weather_city || 'Salvador'} • Puxado automaticamente via Open-Meteo API
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleFetchCityWeather(formCustomSettings.weather_city)}
+                          disabled={fetchingWeather}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem' }}
+                          title="Atualizar dados climáticos em tempo real agora"
+                        >
+                          <RotateCw size={13} className={fetchingWeather ? 'spin' : ''} />
+                          {fetchingWeather ? 'Sincronizando...' : 'Atualizar da API'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 7. Atalhos de Aplicativos Ativos no Grupo */}
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 14,
+                  padding: 16
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Tv size={16} color="#60a5fa" />
+                      Aplicativos Ativos no Grupo <strong>({formShortcuts.length} de {appShortcuts.length})</strong>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <span 
+                        style={{ color: '#60a5fa', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}
+                        onClick={() => setFormShortcuts(appShortcuts.map(s => s.id))}
+                      >
+                        Marcar Todos
+                      </span>
+                      <span style={{ color: '#475569', fontSize: '0.78rem' }}>•</span>
+                      <span 
+                        style={{ color: '#94a3b8', cursor: 'pointer', fontSize: '0.78rem' }}
+                        onClick={() => setFormShortcuts([])}
+                      >
+                        Desmarcar Todos
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+                    gap: 10, maxHeight: 180, overflowY: 'auto', padding: '4px'
+                  }}>
+                    {appShortcuts.map(sc => {
+                      const isChecked = formShortcuts.includes(sc.id);
+                      return (
+                        <div 
+                          key={sc.id}
+                          onClick={() => {
+                            if (isChecked) {
+                              setFormShortcuts(formShortcuts.filter(id => id !== sc.id));
+                            } else {
+                              setFormShortcuts([...formShortcuts, sc.id]);
+                            }
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '10px 12px', borderRadius: 10,
+                            background: isChecked ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                            border: isChecked ? '1px solid var(--primary)' : '1px solid rgba(255, 255, 255, 0.08)',
+                            cursor: 'pointer', transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {isChecked ? <CheckSquare size={16} color="var(--primary)" /> : <Square size={16} style={{ opacity: 0.4 }} />}
+                          <span style={{ fontSize: '0.84rem', fontWeight: 500, color: isChecked ? '#fff' : 'var(--text-muted)' }}>
+                            {sc.name}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 8. Padrão de Tamanhos, Posições & Widgets das TVs */}
                 <div style={{
                   background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%)',
                   border: '1px solid rgba(59, 130, 246, 0.25)',
-                  borderRadius: 14, padding: 16, marginTop: 6
+                  borderRadius: 14, padding: 16
                 }}>
                   <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#93c5fd', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Sparkles size={16} color="#60a5fa" /> Padrão de Tamanhos, Posições & Widgets das TVs
@@ -799,90 +1145,7 @@ export default function GroupsView({
                       )}
                     </div>
 
-                    {/* 4. Widget de Previsão do Tempo */}
-                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Sun size={16} color="#fbbf24" />
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff' }}>Widget de Previsão do Tempo</span>
-                        </div>
-
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.78rem', color: '#fff' }}>
-                          <input 
-                            type="checkbox"
-                            checked={formCustomSettings.show_weather !== false}
-                            onChange={e => setFormCustomSettings({ ...formCustomSettings, show_weather: e.target.checked })}
-                            style={{ accentColor: '#fbbf24' }}
-                          />
-                          <span>Exibir Previsão</span>
-                        </label>
-                      </div>
-
-                      {formCustomSettings.show_weather !== false && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                            <div>
-                              <label className="form-label" style={{ fontSize: '0.74rem' }}>Cidade</label>
-                              <input 
-                                type="text"
-                                className="form-control"
-                                value={formCustomSettings.weather_city || 'Salvador'}
-                                onChange={e => setFormCustomSettings({ ...formCustomSettings, weather_city: e.target.value })}
-                                placeholder="Ex: Salvador ou São Paulo"
-                                style={{ fontSize: '0.8rem', padding: '6px 10px' }}
-                              />
-                            </div>
-
-                            <div>
-                              <label className="form-label" style={{ fontSize: '0.74rem' }}>Temperatura de Exibição</label>
-                              <input 
-                                type="text"
-                                className="form-control"
-                                value={formCustomSettings.weather_temp || '28°C'}
-                                onChange={e => setFormCustomSettings({ ...formCustomSettings, weather_temp: e.target.value })}
-                                placeholder="Ex: 28°C"
-                                style={{ fontSize: '0.8rem', padding: '6px 10px' }}
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 6 }}>Condição Climática / Ícone na TV</label>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 6 }}>
-                              {[
-                                { id: 'sunny', label: 'Ensolarado', icon: Sun, color: '#fbbf24' },
-                                { id: 'partly_cloudy', label: 'Parc. Nublado', icon: CloudSun, color: '#60a5fa' },
-                                { id: 'cloudy', label: 'Nublado', icon: Cloud, color: '#94a3b8' },
-                                { id: 'rain', label: 'Chuvoso', icon: CloudRain, color: '#38bdf8' },
-                                { id: 'clear_night', label: 'Noite Limpa', icon: Moon, color: '#c084fc' }
-                              ].map(cond => {
-                                const IconComponent = cond.icon;
-                                const isSel = (formCustomSettings.weather_condition || 'sunny') === cond.id;
-                                return (
-                                  <button
-                                    key={cond.id}
-                                    type="button"
-                                    onClick={() => setFormCustomSettings({ ...formCustomSettings, weather_condition: cond.id })}
-                                    style={{
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                                      padding: '6px 8px', borderRadius: 8, cursor: 'pointer',
-                                      background: isSel ? 'rgba(251, 191, 36, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                                      border: isSel ? '1px solid #fbbf24' : '1px solid rgba(255, 255, 255, 0.08)',
-                                      color: isSel ? '#fbbf24' : '#94a3b8', fontSize: '0.72rem', fontWeight: 600
-                                    }}
-                                  >
-                                    <IconComponent size={14} color={cond.color} />
-                                    <span>{cond.label}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 5. Alinhamento e Posições do Topo */}
+                    {/* 4. Alinhamento dos Elementos no Topo */}
                     <div style={{ background: 'rgba(0,0,0,0.25)', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
                       <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: 8, display: 'block' }}>
                         Alinhamento dos Elementos no Topo da TV
@@ -933,6 +1196,7 @@ export default function GroupsView({
           </div>
         </div>
       )}
+
 
       {/* Modal de Atribuição em Massa */}
       {isBulkModalOpen && (

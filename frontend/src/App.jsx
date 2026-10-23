@@ -455,8 +455,8 @@ export default function App() {
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <a 
-              href="/fasano-smarttv-v1.0.5.apk" 
-              download="fasano-smarttv-v1.0.5.apk"
+              href="/fasano-smarttv-v1.0.7.apk" 
+              download="fasano-smarttv-v1.0.7.apk"
               className="btn btn-secondary"
               style={{
                 display: 'inline-flex',
@@ -468,9 +468,9 @@ export default function App() {
                 textDecoration: 'none',
                 fontWeight: 600
               }}
-              title="Baixar APK instalador da Launcher para Android / Google TV (v1.0.5)"
+              title="Baixar APK instalador da Launcher para Android / Google TV (v1.0.7)"
             >
-              <Download size={16} /> Baixar APK v1.0.5
+              <Download size={16} /> Baixar APK v1.0.7
             </a>
 
             <button 
@@ -633,19 +633,47 @@ export default function App() {
                         alignItems: 'center',
                         fontSize: '0.82rem'
                       }}>
-                        <span style={{ color: '#60a5fa', fontWeight: 600 }}>
-                          🏨 UH {tv.uh_number || tv.custom_settings?.uh_number || '---'}
+                        <span style={{ color: '#60a5fa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>🏨 UH {tv.uh_number || tv.custom_settings?.uh_number || '---'}</span>
+                          {tv.custom_settings?.room_type && (
+                            <span style={{
+                              background: 'rgba(59, 130, 246, 0.22)',
+                              border: '1px solid rgba(59, 130, 246, 0.4)',
+                              color: '#93c5fd',
+                              fontSize: '0.7rem',
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              fontWeight: 700
+                            }}>
+                              {tv.custom_settings.room_type}
+                            </span>
+                          )}
                         </span>
-                        <span style={{ 
-                          color: (tv.guest_name || tv.custom_settings?.guest_name) ? '#34d399' : 'var(--text-muted)', 
-                          fontWeight: 500, 
-                          overflow: 'hidden', 
-                          textOverflow: 'ellipsis', 
-                          whiteSpace: 'nowrap', 
-                          maxWidth: 160 
-                        }} title={tv.guest_name || tv.custom_settings?.guest_name || 'Quarto Vago'}>
-                          👤 {tv.guest_name || tv.custom_settings?.guest_name || 'Vago'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {tv.custom_settings?.room_status && (
+                            <span style={{
+                              fontSize: '0.68rem',
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              fontWeight: 600,
+                              background: tv.custom_settings.room_status.toLowerCase().includes('vac') ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                              color: tv.custom_settings.room_status.toLowerCase().includes('vac') ? '#34d399' : '#fbbf24',
+                              border: `1px solid ${tv.custom_settings.room_status.toLowerCase().includes('vac') ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
+                            }}>
+                              {tv.custom_settings.room_status}
+                            </span>
+                          )}
+                          <span style={{ 
+                            color: (tv.guest_name || tv.custom_settings?.guest_name) ? '#34d399' : 'var(--text-muted)', 
+                            fontWeight: 500, 
+                            overflow: 'hidden', 
+                            textOverflow: 'ellipsis', 
+                            whiteSpace: 'nowrap', 
+                            maxWidth: 130 
+                          }} title={tv.guest_name || tv.custom_settings?.guest_name || 'Quarto Vago'}>
+                            👤 {tv.guest_name || tv.custom_settings?.guest_name || 'Vago'}
+                          </span>
+                        </div>
                       </div>
                     ) : (
                       <div style={{
@@ -823,19 +851,47 @@ export default function App() {
                       alignItems: 'center',
                       fontSize: '0.82rem'
                     }}>
-                      <span style={{ color: '#f59e0b', fontWeight: 600 }}>
-                        UH {tv.custom_settings?.uh_number || '---'}
+                      <span style={{ color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>UH {tv.custom_settings?.uh_number || '---'}</span>
+                        {tv.custom_settings?.room_type && (
+                          <span style={{
+                            background: 'rgba(245, 158, 11, 0.22)',
+                            border: '1px solid rgba(245, 158, 11, 0.4)',
+                            color: '#fbbf24',
+                            fontSize: '0.7rem',
+                            padding: '1px 6px',
+                            borderRadius: 4,
+                            fontWeight: 700
+                          }}>
+                            {tv.custom_settings.room_type}
+                          </span>
+                        )}
                       </span>
-                      <span style={{ 
-                        color: tv.custom_settings?.guest_name ? '#34d399' : 'var(--text-muted)', 
-                        fontWeight: 500, 
-                        overflow: 'hidden', 
-                        textOverflow: 'ellipsis', 
-                        whiteSpace: 'nowrap', 
-                        maxWidth: 160 
-                      }} title={tv.custom_settings?.guest_name || 'Quarto Vago'}>
-                        👤 {tv.custom_settings?.guest_name || 'Vago'}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {tv.custom_settings?.room_status && (
+                          <span style={{
+                            fontSize: '0.68rem',
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            fontWeight: 600,
+                            background: tv.custom_settings.room_status.toLowerCase().includes('vac') ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                            color: tv.custom_settings.room_status.toLowerCase().includes('vac') ? '#34d399' : '#fbbf24',
+                            border: `1px solid ${tv.custom_settings.room_status.toLowerCase().includes('vac') ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
+                          }}>
+                            {tv.custom_settings.room_status}
+                          </span>
+                        )}
+                        <span style={{ 
+                          color: tv.custom_settings?.guest_name ? '#34d399' : 'var(--text-muted)', 
+                          fontWeight: 500, 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          whiteSpace: 'nowrap', 
+                          maxWidth: 130 
+                        }} title={tv.custom_settings?.guest_name || 'Quarto Vago'}>
+                          👤 {tv.custom_settings?.guest_name || 'Vago'}
+                        </span>
+                      </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.85rem', color: 'var(--text-secondary)', padding: '6px 0' }}>

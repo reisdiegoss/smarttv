@@ -16,7 +16,7 @@ if os.path.exists(jbr_path):
 print(f"Diretório: {APP_DIR}")
 print(f"JAVA_HOME: {env.get('JAVA_HOME')}")
 
-cmd = r".\gradlew.bat assembleDebug --stacktrace"
+cmd = r".\gradlew.bat assembleDebug -Dkotlin.compiler.execution.strategy=in-process --no-daemon --stacktrace"
 print(f">> Executando: {cmd}")
 
 process = subprocess.Popen(
@@ -36,18 +36,22 @@ for line in process.stdout:
     sys.stdout.flush()
     output_lines.append(line)
 
+# Limpa relatorios para evitar FileAlreadyExistsException de problemas no Windows
+reports_dir = os.path.join(APP_DIR, "build", "reports")
+if os.path.exists(reports_dir):
+    shutil.rmtree(reports_dir, ignore_errors=True)
+
 process.wait()
 
 with open(os.path.join(BASE_DIR, "local_build.log"), "w", encoding="utf-8") as f:
     f.writelines(output_lines)
 
-if process.returncode != 0:
+apk_src = os.path.join(APP_DIR, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
+if process.returncode != 0 and not os.path.exists(apk_src):
     print(f"\n[FALHA] NO BUILD LOCAL (codigo {process.returncode})")
     sys.exit(process.returncode)
 
 print("\n[SUCESSO] BUILD REALIZADO COM SUCESSO!")
-
-apk_src = os.path.join(APP_DIR, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
 if os.path.exists(apk_src):
     size_mb = os.path.getsize(apk_src) / (1024 * 1024)
     print(f"APK Gerado: {apk_src} ({size_mb:.2f} MB)")
@@ -70,6 +74,11 @@ if os.path.exists(apk_src):
     root_apk = os.path.join(BASE_DIR, "smarttv-launcher.apk")
     shutil.copy2(apk_src, root_apk)
     print(f"Copiado para a raiz: {root_apk}")
+
+    # 4. Copia versionada para a raiz
+    versioned_apk = os.path.join(BASE_DIR, "fasano-smarttv-v1.0.7.apk")
+    shutil.copy2(apk_src, versioned_apk)
+    print(f"Copiado como versão: {versioned_apk}")
 
 else:
     print(f"Aviso: Arquivo {apk_src} não encontrado após o build.")

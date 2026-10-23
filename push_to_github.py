@@ -1,5 +1,4 @@
 import subprocess
-import sys
 
 def run(cmd):
     print(">>", cmd)
@@ -10,9 +9,9 @@ def run(cmd):
         print(r.stderr.strip())
     return r.returncode
 
-print("=== ENVIANDO FIX DE DESUGARING E COMPATIBILIDADE JAVA 1.8 ===")
+print("=== ENVIANDO ATUALIZACOES PMS / FIAS / DROPDOWN ===")
 run("git add -A")
-run('git commit -m "fix(android): enable core library desugaring and Java 1.8 compatibility for minSdk 21"')
+run('git commit -m "feat: fix FIAS handshake, parse guest names from IFC8 and add room dropdown selector"')
 code = run("git push origin main")
 if code == 0:
     print("=== PUSH CONCLUIDO COM SUCESSO! ===")
