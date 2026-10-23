@@ -36,6 +36,11 @@ class FIASService:
         self.timeline: deque = deque(maxlen=300)
         self._event_id_seq: int = 1
 
+        # Controle de Resync e Diffs
+        self.is_resync_in_progress: bool = False
+        self.resync_updated_uhs: set = set()
+        self.resync_diff_count: int = 0
+
     def log_timeline(
         self,
         category: str,
@@ -131,7 +136,9 @@ class FIASService:
             "synced_events_count": self.synced_events_count,
             "packets_sent_count": self.packets_sent_count,
             "packets_recv_count": self.packets_recv_count,
-            "errors_count": self.errors_count
+            "errors_count": self.errors_count,
+            "is_resync_in_progress": self.is_resync_in_progress,
+            "resync_diff_count": self.resync_diff_count
         }
 
     def get_timeline_data(self, limit: int = 150) -> Dict[str, Any]:
@@ -303,17 +310,22 @@ class FIASService:
             await self._send_packet(f"LA|DA{da}|TI{ti}|")
 
         elif cmd == "DS":
+            self.is_resync_in_progress = True
+            self.resync_updated_uhs.clear()
+            self.resync_diff_count = 0
             self.log_timeline(
                 "RESYNC", "SUCCESS", "Início de Database Resync (DS)",
-                "O Opera PMS iniciou o envio dos hóspedes ativos em lote!",
+                "O Opera PMS iniciou o envio dos hóspedes ativos em lote! Analisando diff de cada UH...",
                 raw_packet=record
             )
 
         elif cmd in ("DE", "RE"):
+            self.is_resync_in_progress = False
             self.last_resync_time = datetime.utcnow()
+            diff_msg = f"{self.resync_diff_count} UHs atualizadas." if self.resync_diff_count > 0 else "Todas as UHs já estavam em sincronia (0 alterações)."
             self.log_timeline(
                 "RESYNC", "SUCCESS", f"Fim de Database Resync ({cmd})",
-                f"Sincronização de hóspedes concluída com sucesso! Total eventos processados: {self.synced_events_count}",
+                f"Sincronização de hóspedes concluída com sucesso! Total eventos: {self.synced_events_count}. Diff: {diff_msg}",
                 raw_packet=record
             )
 
@@ -330,12 +342,7 @@ class FIASService:
             self.synced_events_count += 1
             self.last_event = {"type": cmd, "uh": rn, "guest_name": guest_name, "time": datetime.utcnow().isoformat()}
 
-            self.log_timeline(
-                "GUEST", "SUCCESS", f"Hóspede Check-In: UH {rn}",
-                f"Hóspede '{guest_name}' vinculado à UH {rn} (Reserva: {guest_num or 'N/A'}, Share: {gs})",
-                raw_packet=record,
-                uh=rn
-            )
+            fields["_raw"] = record
             if rn:
                 await self._sync_tv_guest(rn, guest_name, is_checkin=True, fields=fields)
 
@@ -344,12 +351,7 @@ class FIASService:
             self.synced_events_count += 1
             self.last_event = {"type": "CHECK_OUT", "uh": rn, "time": datetime.utcnow().isoformat()}
 
-            self.log_timeline(
-                "GUEST", "INFO", f"Hóspede Check-Out: UH {rn}",
-                f"Check-out registrado. UH {rn} definida como vaga.",
-                raw_packet=record,
-                uh=rn
-            )
+            fields["_raw"] = record
             if rn:
                 await self._sync_tv_guest(rn, None, is_checkin=False, fields=fields)
 
@@ -438,6 +440,11 @@ class FIASService:
         da = now.strftime("%y%m%d")
         ti = now.strftime("%H%M%S")
         uh_target = room_number.strip() if room_number else "ALL"
+
+        # Marca o início do ciclo de resync para controle de diff e shares
+        self.is_resync_in_progress = True
+        self.resync_updated_uhs.clear()
+        self.resync_diff_count = 0
 
         self.log_timeline(
             "RESYNC", "INFO", f"Disparando Resync (DR) para UH {uh_target}",
@@ -592,41 +599,82 @@ class FIASService:
                     cust = dict(target_tv.custom_settings or {})
                     cust["uh_number"] = clean_uh
 
+                    old_guest = target_tv.guest_name
+                    old_status = (cust.get("room_status") or ("Occupied" if old_guest else "Vacant")).capitalize()
+
                     if is_checkin and guest_name:
                         # Regra: quando for necessário colocar '/', mantemos apenas o que vem antes da '/'
                         raw_guest = guest_name.split('/')[0].strip()
 
-                        # Se for share e já tiver hóspede cadastrado, preserva o hóspede principal (o primeiro cadastrado)
-                        existing = target_tv.guest_name
-                        if existing and existing not in ("Hóspede", "Y", "N", ""):
-                            final_guest = existing.split('/')[0].strip()
-                        else:
-                            final_guest = raw_guest
+                        # Se estamos em ciclo de resync e esta UH já foi atualizada NESTE resync com outro hóspede (share):
+                        # Opera envia o hóspede principal primeiro, depois registros de share (GS=Y).
+                        # Mantemos o primeiro recebido neste ciclo de resync!
+                        if self.is_resync_in_progress and clean_uh in self.resync_updated_uhs:
+                            self.log_timeline(
+                                "GUEST", "INFO", f"Share na UH {clean_uh}",
+                                f"Hóspede adicional '{raw_guest}' recebido via share (mantendo hóspede principal '{old_guest}').",
+                                uh=clean_uh
+                            )
+                            return
 
-                        target_tv.guest_name = final_guest
-                        cust["guest_name"] = final_guest
-                        cust["room_status"] = "Occupied"
-                        cust["welcome_title"] = f"Sr(a). {final_guest}, Bem-vindo(a) ao Fasano"
+                        final_guest = raw_guest
+                        new_status = "Occupied"
                     else:
-                        target_tv.guest_name = None
-                        cust.pop("guest_name", None)
-                        cust["room_status"] = "Vacant"
-                        cust["welcome_title"] = "Seja Bem-vindo(a) ao Fasano"
+                        final_guest = None
+                        new_status = "Vacant"
 
-                    target_tv.custom_settings = cust
-                    target_tv.updated_at = datetime.utcnow()
+                    # Marca que esta UH foi processada neste ciclo de resync
+                    if self.is_resync_in_progress:
+                        self.resync_updated_uhs.add(clean_uh)
 
-                    action_name = "CHECK_IN" if is_checkin else "CHECK_OUT"
-                    log_msg = f"PMS Opera: UH {clean_uh} -> '{target_tv.guest_name or 'Quarto Vago'}'"
-                    log = DeviceLog(tv_id=target_tv.id, event_type=f"PMS_{action_name}", message=log_msg)
-                    session.add(log)
+                    # --- REALIZAR DIFF ---
+                    clean_old = (old_guest or "").strip()
+                    clean_new = (final_guest or "").strip()
+                    guest_changed = clean_old.lower() != clean_new.lower()
+                    status_changed = old_status.lower() != new_status.lower()
+                    has_diff = guest_changed or status_changed
 
-                    await session.commit()
-                    self.log_timeline(
-                        "GUEST", "SUCCESS", f"TV {target_tv.name} Atualizada",
-                        f"Banco de dados sincronizado: Quarto {clean_uh} agora exibe '{target_tv.guest_name or 'Quarto Vago'}'.",
-                        uh=clean_uh
-                    )
+                    if has_diff:
+                        self.resync_diff_count += 1
+                        target_tv.guest_name = final_guest
+                        cust["uh_number"] = clean_uh
+                        if final_guest:
+                            cust["guest_name"] = final_guest
+                            cust["room_status"] = "Occupied"
+                            cust["welcome_title"] = f"Sr(a). {final_guest}, Bem-vindo(a) ao Fasano"
+                        else:
+                            cust.pop("guest_name", None)
+                            cust["room_status"] = "Vacant"
+                            cust["welcome_title"] = "Seja Bem-vindo(a) ao Fasano"
+
+                        target_tv.custom_settings = cust
+                        target_tv.updated_at = datetime.utcnow()
+
+                        diff_detail = f"Hóspede: '{clean_old or 'Quarto Vago'}' ➔ '{clean_new or 'Quarto Vago'}'"
+                        if status_changed:
+                            diff_detail += f" | Status: {old_status} ➔ {new_status}"
+
+                        action_name = "CHECK_IN" if is_checkin else "CHECK_OUT"
+                        log_msg = f"PMS Diff: UH {clean_uh} [{clean_old or 'Vago'} -> {clean_new or 'Vago'}]"
+                        log = DeviceLog(tv_id=target_tv.id, event_type=f"PMS_{action_name}", message=log_msg)
+                        session.add(log)
+
+                        await session.commit()
+
+                        self.log_timeline(
+                            "DIFF", "SUCCESS", f"Diff UH {clean_uh}: {clean_old or 'Vago'} ➔ {clean_new or 'Vago'}",
+                            f"PMS aplicou atualização: {diff_detail}.",
+                            raw_packet=fields.get("_raw") if fields else None,
+                            uh=clean_uh
+                        )
+                    else:
+                        # Sem alteração necessária: já está em sincronia perfeita!
+                        self.log_timeline(
+                            "DIFF", "INFO", f"UH {clean_uh} em Sincronia",
+                            f"Hóspede '{clean_new or 'Quarto Vago'}' conferido com o Opera (sem alteração necessária).",
+                            raw_packet=fields.get("_raw") if fields else None,
+                            uh=clean_uh
+                        )
                 else:
                     # Se a TV NÃO existe no banco, criamos como Sem Grupo (atribuição 100% manual)
                     clean_code = f"UH-{clean_uh.zfill(4)}"

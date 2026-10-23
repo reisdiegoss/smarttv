@@ -304,6 +304,9 @@ async def manual_sync_uh(payload: ManualPMSSyncRequest, request: Request, db: As
     current_settings = dict(target_tv.custom_settings or {})
     current_settings["uh_number"] = clean_uh
 
+    old_guest = target_tv.guest_name
+    old_status = (current_settings.get("room_status") or ("Occupied" if old_guest else "Vacant")).capitalize()
+
     is_checkin = payload.action.upper() != "CHECK_OUT" and bool(payload.guest_name)
     if is_checkin and payload.guest_name:
         clean_guest = payload.guest_name.split('/')[0].strip()
@@ -312,12 +315,15 @@ async def manual_sync_uh(payload: ManualPMSSyncRequest, request: Request, db: As
         current_settings["guest_name"] = clean_guest
         current_settings["room_status"] = "Occupied"
         current_settings["welcome_title"] = payload.welcome_title or f"Sr(a). {clean_guest}, Bem-vindo(a) ao Fasano"
+        new_status = "Occupied"
     else:
+        clean_guest = None
         target_tv.guest_name = None
         target_tv.uh_number = clean_uh
         current_settings.pop("guest_name", None)
         current_settings["room_status"] = "Vacant"
         current_settings["welcome_title"] = payload.welcome_title or "Seja Bem-vindo(a) ao Fasano"
+        new_status = "Vacant"
 
     if payload.welcome_subtitle:
         current_settings["welcome_subtitle"] = payload.welcome_subtitle
@@ -329,7 +335,7 @@ async def manual_sync_uh(payload: ManualPMSSyncRequest, request: Request, db: As
     log = DeviceLog(
         tv_id=target_tv.id,
         event_type=f"PMS_{action_label}",
-        message=f"PMS Sync: UH {clean_uh} -> '{target_tv.guest_name or 'Quarto Vago'}'"
+        message=f"PMS Quick Sync: UH {clean_uh} [{old_guest or 'Vago'} -> {clean_guest or 'Vago'}]"
     )
     db.add(log)
 
@@ -340,7 +346,13 @@ async def manual_sync_uh(payload: ManualPMSSyncRequest, request: Request, db: As
         entity="SmartTV",
         entity_id=str(target_tv.id),
         entity_name=target_tv.name,
-        description=f"UH {clean_uh} sincronizada com hóspede '{target_tv.guest_name or 'Quarto Vago'}'"
+        description=f"UH {clean_uh} sincronizada: '{old_guest or 'Quarto Vago'}' ➔ '{clean_guest or 'Quarto Vago'}'"
+    )
+
+    fias_service.log_timeline(
+        "DIFF", "SUCCESS", f"Sincronização Rápida UH {clean_uh}: {old_guest or 'Vago'} ➔ {clean_guest or 'Vago'}",
+        f"Ação manual ({action_label}) aplicada: Quarto {clean_uh} alterado de '{old_guest or 'Quarto Vago'}' para '{clean_guest or 'Quarto Vago'}'. Status: {old_status} ➔ {new_status}.",
+        uh=clean_uh
     )
 
     await db.commit()
@@ -760,9 +772,17 @@ async def save_detected_rooms(
                 cust["room_status"] = status
 
             if guest:
+                old_guest = tv.guest_name
                 tv.guest_name = guest
                 cust["guest_name"] = guest
+                cust["room_status"] = "Occupied"
                 cust["welcome_title"] = f"Sr(a). {guest}, Bem-vindo(a) ao Fasano"
+                if (old_guest or "").strip().lower() != guest.strip().lower():
+                    fias_service.log_timeline(
+                        "DIFF", "SUCCESS", f"Planilha Diff UH {clean_uh}: {old_guest or 'Vago'} ➔ {guest}",
+                        f"Importação de planilha atualizou UH {clean_uh} de '{old_guest or 'Quarto Vago'}' para '{guest}'.",
+                        uh=clean_uh
+                    )
 
             tv.custom_settings = cust
             tv.pms_enabled = True

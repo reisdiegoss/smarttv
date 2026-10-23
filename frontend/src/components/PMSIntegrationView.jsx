@@ -785,6 +785,7 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {[
               { id: 'ALL', label: 'Todos os Eventos' },
+              { id: 'DIFF', label: 'Diff (Alterações)' },
               { id: 'GUEST', label: 'Hóspedes (Check-In)' },
               { id: 'RESYNC', label: 'Resync (DR)' },
               { id: 'SOCKET', label: 'Conexão & Handshake' },
@@ -798,7 +799,7 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
                 style={{
                   fontSize: '0.72rem', padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
                   border: 'none', fontWeight: timelineFilter === f.id ? 700 : 500,
-                  background: timelineFilter === f.id ? '#3b82f6' : 'rgba(255, 255, 255, 0.06)',
+                  background: timelineFilter === f.id ? (f.id === 'DIFF' ? '#8b5cf6' : '#3b82f6') : 'rgba(255, 255, 255, 0.06)',
                   color: timelineFilter === f.id ? '#fff' : '#94a3b8'
                 }}
               >
@@ -873,7 +874,8 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
             timeline
               .filter(item => {
                 if (timelineFilter === 'ALL') return true;
-                if (timelineFilter === 'GUEST') return item.category === 'GUEST';
+                if (timelineFilter === 'DIFF') return item.category === 'DIFF';
+                if (timelineFilter === 'GUEST') return item.category === 'GUEST' || item.category === 'DIFF';
                 if (timelineFilter === 'RESYNC') return item.category === 'RESYNC';
                 if (timelineFilter === 'SOCKET') return item.category === 'SOCKET' || item.category === 'HANDSHAKE';
                 if (timelineFilter === 'ERROR') return item.level === 'ERROR' || item.level === 'WARNING';
@@ -884,8 +886,9 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
                 const isError = item.level === 'ERROR';
                 const isSuccess = item.level === 'SUCCESS';
                 const isWarning = item.level === 'WARNING';
-                const borderColor = isError ? '#ef4444' : (isSuccess ? '#10b981' : (isWarning ? '#f59e0b' : '#3b82f6'));
-                const textColor = isError ? '#f87171' : (isSuccess ? '#34d399' : (isWarning ? '#fbbf24' : '#93c5fd'));
+                const isDiff = item.category === 'DIFF';
+                const borderColor = isError ? '#ef4444' : (isDiff ? '#a855f7' : (isSuccess ? '#10b981' : (isWarning ? '#f59e0b' : '#3b82f6')));
+                const textColor = isError ? '#f87171' : (isDiff ? '#c084fc' : (isSuccess ? '#34d399' : (isWarning ? '#fbbf24' : '#93c5fd')));
 
                 return (
                   <div
