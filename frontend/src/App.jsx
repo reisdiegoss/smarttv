@@ -17,6 +17,7 @@ import LoginView from './components/LoginView';
 import AuditTrailView from './components/AuditTrailView';
 import GroupsView from './components/GroupsView';
 import PMSIntegrationView from './components/PMSIntegrationView';
+import ShortcutsView from './components/ShortcutsView';
 
 export default function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('smarttv_token'));
@@ -1168,40 +1169,10 @@ export default function App() {
 
         {/* VIEW 6: APPS & HDMI SKY SHORTCUTS */}
         {activeTab === 'shortcuts' && (
-          <div>
-            <div style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginBottom: 24 }}>
-              Gerenciamento de aplicativos instalados no Android TV e mapeamento do decodificador da SKY via HDMI.
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20 }}>
-              {shortcuts.map(sc => (
-                <div key={sc.id} className="glass-card" style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{
-                    width: 54, height: 54, borderRadius: 16,
-                    background: sc.is_hdmi ? 'rgba(239, 68, 68, 0.2)' : 'rgba(30, 41, 59, 0.7)',
-                    border: sc.is_hdmi ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <BrandAppIcon name={sc.name} packageName={sc.package_name} isHdmi={sc.is_hdmi} isFocused={false} />
-                  </div>
-
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <h4 style={{ fontSize: '1.05rem', color: '#fff' }}>{sc.name}</h4>
-                      {sc.is_hdmi && (
-                        <span style={{ fontSize: '0.7rem', background: '#ef4444', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
-                          HDMI SKY
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                      Pacote: <code>{sc.package_name}</code>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ShortcutsView 
+            shortcuts={shortcuts} 
+            onRefresh={loadData} 
+          />
         )}
 
         {/* VIEW: TV GROUPS & INHERITANCE */}

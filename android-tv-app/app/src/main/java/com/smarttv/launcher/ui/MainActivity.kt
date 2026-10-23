@@ -58,7 +58,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var containerHeaderWidgets: View
     private lateinit var tvTitle: TextView
     private lateinit var tvSubtitle: TextView
+    private lateinit var cardClock: View
+    private lateinit var ivClockIcon: ImageView
     private lateinit var tvTime: TextView
+    private lateinit var tvDate: TextView
     private lateinit var cardWeather: View
     private lateinit var ivWeatherIcon: ImageView
     private lateinit var tvWeatherTemp: TextView
@@ -139,7 +142,10 @@ class MainActivity : AppCompatActivity() {
         containerHeaderWidgets = findViewById(R.id.containerHeaderWidgets)
         tvTitle = findViewById(R.id.tvTitle)
         tvSubtitle = findViewById(R.id.tvSubtitle)
+        cardClock = findViewById(R.id.cardClock)
+        ivClockIcon = findViewById(R.id.ivClockIcon)
         tvTime = findViewById(R.id.tvTime)
+        tvDate = findViewById(R.id.tvDate)
         cardWeather = findViewById(R.id.cardWeather)
         ivWeatherIcon = findViewById(R.id.ivWeatherIcon)
         tvWeatherTemp = findViewById(R.id.tvWeatherTemp)
@@ -389,7 +395,8 @@ class MainActivity : AppCompatActivity() {
     private fun promptAdminPinDialog(onSuccessAction: (() -> Unit)? = null) {
         exoPlayer?.pause()
         val custom = currentConfig?.customSettings ?: emptyMap()
-        val expectedPin = (custom["admin_exit_pin"] as? String)?.trim()?.takeIf { it.isNotBlank() } ?: "1234"
+        val expectedPin = ((custom["pin_code"] as? String) ?: (custom["admin_exit_pin"] as? String))
+            ?.trim()?.takeIf { it.isNotBlank() } ?: "0000"
 
         val dialogView = layoutInflater.inflate(R.layout.dialog_admin_pin, null)
         val tvPinDisplay = dialogView.findViewById<TextView>(R.id.tvPinDisplay)
@@ -1065,15 +1072,30 @@ class MainActivity : AppCompatActivity() {
         val subtitleFontSize = (titleFontSize * 0.54f).coerceAtLeast(12f)
         tvSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, subtitleFontSize)
 
-        // Relógio Digital no Topo com Tamanho Dinâmico
-        val showClock = (custom["show_clock"] as? Boolean) ?: true
-        tvTime.visibility = if (showClock) View.VISIBLE else View.GONE
+        // Relógio Digital no Topo com Tamanho Dinâmico e Modelo (Apenas Horário vs Horário com Data)
+        val showClock = (custom["show_clock"] as? Boolean) != false
+        cardClock.visibility = if (showClock) View.VISIBLE else View.GONE
+
+        val clockFormat = (custom["clock_format"] as? String)?.trim() ?: "time_only"
+        tvDate.visibility = if (showClock && clockFormat == "time_and_date") View.VISIBLE else View.GONE
+
         val clockFontSize = when (val s = custom["clock_font_size"]) {
             is Number -> s.toInt().coerceIn(14, 48)
             is String -> (s.toIntOrNull() ?: 22).coerceIn(14, 48)
             else -> 22
         }
         tvTime.setTextSize(TypedValue.COMPLEX_UNIT_SP, clockFontSize.toFloat())
+        tvDate.setTextSize(TypedValue.COMPLEX_UNIT_SP, (clockFontSize * 0.55f).coerceAtLeast(11f))
+        
+        try {
+            val clockIconSizePx = dpToPx((clockFontSize * 0.75f).toInt().coerceAtLeast(14))
+            val clockLp = ivClockIcon.layoutParams
+            clockLp.width = clockIconSizePx
+            clockLp.height = clockIconSizePx
+            ivClockIcon.layoutParams = clockLp
+        } catch (e: Exception) {
+            // Layout params fallback
+        }
 
         // Widget de Previsão do Tempo
         val showWeather = (custom["show_weather"] as? Boolean) ?: true
@@ -1383,15 +1405,29 @@ class MainActivity : AppCompatActivity() {
         containerShortcuts.removeAllViews()
 
         // Tamanho Dinâmico dos Ícones e Botões da Dock
-        val dockIconSize = when (val s = (config.customSettings ?: emptyMap())["dock_icon_size"]) {
+        val customMap = config.customSettings ?: emptyMap()
+        val dockIconSize = when (val s = customMap["dock_icon_size"]) {
             is Number -> s.toInt().coerceIn(44, 115)
             is String -> (s.toIntOrNull() ?: 72).coerceIn(44, 115)
             else -> 72
         }
         val btnWidthPx = dpToPx((dockIconSize * 1.65).toInt())
         val btnHeightPx = dpToPx((dockIconSize * 1.15).toInt())
-        val iconSizePx = dpToPx((dockIconSize * 0.44).toInt())
-        val textSp = (dockIconSize * 0.175f).coerceIn(10f, 18f)
+        
+        // Tamanho interno customizado da imagem / ícone
+        val dockInnerSize = when (val s = customMap["dock_inner_icon_size"]) {
+            is Number -> s.toInt().coerceIn(20, 80)
+            is String -> (s.toIntOrNull() ?: 36).coerceIn(20, 80)
+            else -> (dockIconSize * 0.44).toInt().coerceIn(20, 80)
+        }
+        val iconSizePx = dpToPx(dockInnerSize)
+
+        // Tamanho do texto customizado ou proporcional
+        val dockTextSize = when (val s = customMap["dock_text_size"]) {
+            is Number -> s.toInt().coerceIn(10, 22).toFloat()
+            is String -> (s.toIntOrNull()?.toFloat() ?: (dockIconSize * 0.175f)).coerceIn(10f, 22f)
+            else -> (dockIconSize * 0.175f).coerceIn(10f, 20f)
+        }
 
         // 1. Botão HDMI SKY
         if (config.hdmi.enabled && config.hdmi.inputId != "NONE" && config.hdmi.inputId.isNotBlank()) {
@@ -1408,7 +1444,7 @@ class MainActivity : AppCompatActivity() {
             iconLp.height = iconSizePx
             iconSky.layoutParams = iconLp
 
-            textSky.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSp)
+            textSky.setTextSize(TypedValue.COMPLEX_UNIT_SP, dockTextSize)
             textSky.text = config.hdmi.label
             iconSky.setImageResource(R.drawable.ic_hdmi_tv)
             btnSky.setBackgroundResource(R.drawable.bg_shortcut_sky)
@@ -1438,22 +1474,32 @@ class MainActivity : AppCompatActivity() {
             iconLp.height = iconSizePx
             iconApp.layoutParams = iconLp
 
-            textApp.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSp)
+            textApp.setTextSize(TypedValue.COMPLEX_UNIT_SP, dockTextSize)
             textApp.text = sc.name
             btnApp.setBackgroundResource(R.drawable.bg_shortcut_item)
 
-            try {
-                val banner = packageManager.getApplicationBanner(sc.packageName)
-                val icon = packageManager.getApplicationIcon(sc.packageName)
-                if (banner != null) {
-                    iconApp.setImageDrawable(banner)
-                } else if (icon != null) {
-                    iconApp.setImageDrawable(icon)
-                } else {
+            if (!sc.iconUrl.isNullOrBlank()) {
+                val fullUrl = if (sc.iconUrl.startsWith("http")) sc.iconUrl 
+                              else "${SmartTVApp.instance.getServerUrl()}${sc.iconUrl}"
+                iconApp.load(fullUrl) {
+                    crossfade(true)
+                    error(R.drawable.ic_hdmi_tv)
+                    placeholder(R.drawable.ic_hdmi_tv)
+                }
+            } else {
+                try {
+                    val banner = packageManager.getApplicationBanner(sc.packageName)
+                    val icon = packageManager.getApplicationIcon(sc.packageName)
+                    if (banner != null) {
+                        iconApp.setImageDrawable(banner)
+                    } else if (icon != null) {
+                        iconApp.setImageDrawable(icon)
+                    } else {
+                        iconApp.setImageResource(R.drawable.ic_hdmi_tv)
+                    }
+                } catch (e: Exception) {
                     iconApp.setImageResource(R.drawable.ic_hdmi_tv)
                 }
-            } catch (e: Exception) {
-                iconApp.setImageResource(R.drawable.ic_hdmi_tv)
             }
 
             btnApp.setOnClickListener {
@@ -1510,18 +1556,28 @@ class MainActivity : AppCompatActivity() {
             textApp.text = sc.name
             btnApp.setBackgroundResource(R.drawable.bg_shortcut_item)
 
-            try {
-                val banner = packageManager.getApplicationBanner(sc.packageName)
-                val icon = packageManager.getApplicationIcon(sc.packageName)
-                if (banner != null) {
-                    iconApp.setImageDrawable(banner)
-                } else if (icon != null) {
-                    iconApp.setImageDrawable(icon)
-                } else {
+            if (!sc.iconUrl.isNullOrBlank()) {
+                val fullUrl = if (sc.iconUrl.startsWith("http")) sc.iconUrl 
+                              else "${SmartTVApp.instance.getServerUrl()}${sc.iconUrl}"
+                iconApp.load(fullUrl) {
+                    crossfade(true)
+                    error(R.drawable.ic_hdmi_tv)
+                    placeholder(R.drawable.ic_hdmi_tv)
+                }
+            } else {
+                try {
+                    val banner = packageManager.getApplicationBanner(sc.packageName)
+                    val icon = packageManager.getApplicationIcon(sc.packageName)
+                    if (banner != null) {
+                        iconApp.setImageDrawable(banner)
+                    } else if (icon != null) {
+                        iconApp.setImageDrawable(icon)
+                    } else {
+                        iconApp.setImageResource(R.drawable.ic_hdmi_tv)
+                    }
+                } catch (e: Exception) {
                     iconApp.setImageResource(R.drawable.ic_hdmi_tv)
                 }
-            } catch (e: Exception) {
-                iconApp.setImageResource(R.drawable.ic_hdmi_tv)
             }
 
             btnApp.setOnClickListener {
@@ -1631,11 +1687,25 @@ class MainActivity : AppCompatActivity() {
 
     private fun startClock() {
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val dateFormat = SimpleDateFormat("EEEE, d 'de' MMM", Locale("pt", "BR"))
         handler.post(object : Runnable {
             override fun run() {
-                val nowStr = timeFormat.format(Date())
+                val now = Date()
+                val nowStr = timeFormat.format(now)
                 tvTime.text = nowStr
                 tvSidebarTime.text = nowStr
+
+                val rawDate = dateFormat.format(now)
+                val formattedDate = rawDate.split(" ").joinToString(" ") { word ->
+                    val wLower = word.lowercase(Locale("pt", "BR"))
+                    if (wLower in listOf("de", "do", "da", "e")) {
+                        wLower
+                    } else {
+                        word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale("pt", "BR")) else it.toString() }
+                    }
+                }
+                tvDate.text = formattedDate
+
                 handler.postDelayed(this, 30000)
             }
         })

@@ -79,6 +79,9 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
     weather_condition: 'sunny',
     weather_font_size: 20,
     dock_icon_size: 72,
+    dock_inner_icon_size: 36,
+    dock_text_size: 13,
+    clock_format: 'time_only',
     header_layout: 'welcome_left_widgets_right',
     wifi_ssid: '',
     wifi_password: '',
@@ -159,6 +162,9 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
           weather_condition: tv.custom_settings.weather_condition || 'sunny',
           weather_font_size: tv.custom_settings.weather_font_size || 20,
           dock_icon_size: tv.custom_settings.dock_icon_size || 72,
+          dock_inner_icon_size: tv.custom_settings.dock_inner_icon_size || 36,
+          dock_text_size: tv.custom_settings.dock_text_size || 13,
+          clock_format: tv.custom_settings.clock_format || 'time_only',
           header_layout: tv.custom_settings.header_layout || 'welcome_left_widgets_right',
           wifi_ssid: tv.custom_settings.wifi_ssid || '',
           wifi_password: tv.custom_settings.wifi_password || '',
@@ -965,7 +971,63 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                       </button>
                     ))}
                   </div>
-                </div>
+
+                    {/* Tamanho da Imagem / Logo dentro do Ícone */}
+                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Tamanho da Imagem / Logo dentro do Ícone</span>
+                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#38bdf8' }}>{customSettings.dock_inner_icon_size || 36} px</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="20"
+                        max="76"
+                        step="2"
+                        value={customSettings.dock_inner_icon_size || 36}
+                        onChange={e => setCustomSettings({ ...customSettings, dock_inner_icon_size: parseInt(e.target.value) })}
+                        style={{ width: '100%', accentColor: '#38bdf8', cursor: 'pointer' }}
+                      />
+                      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                        {[
+                          { label: 'Pequeno', size: 26 },
+                          { label: 'Médio (Padrão)', size: 36 },
+                          { label: 'Grande', size: 48 },
+                          { label: 'Extra', size: 60 }
+                        ].map(preset => (
+                          <button
+                            key={preset.size}
+                            type="button"
+                            onClick={() => setCustomSettings({ ...customSettings, dock_inner_icon_size: preset.size })}
+                            style={{
+                              padding: '2px 8px', fontSize: '0.70rem', borderRadius: 6, cursor: 'pointer',
+                              background: (customSettings.dock_inner_icon_size || 36) === preset.size ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                              border: (customSettings.dock_inner_icon_size || 36) === preset.size ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                              color: (customSettings.dock_inner_icon_size || 36) === preset.size ? '#38bdf8' : '#94a3b8'
+                            }}
+                          >
+                            {preset.label} ({preset.size}px)
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Tamanho da Fonte do Texto do App */}
+                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Tamanho do Nome do App</span>
+                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#a78bfa' }}>{customSettings.dock_text_size || 13} sp</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="10"
+                        max="22"
+                        step="1"
+                        value={customSettings.dock_text_size || 13}
+                        onChange={e => setCustomSettings({ ...customSettings, dock_text_size: parseInt(e.target.value) })}
+                        style={{ width: '100%', accentColor: '#a78bfa', cursor: 'pointer' }}
+                      />
+                    </div>
+                  </div>
 
                 {/* 2. Tamanho da Mensagem na Tela (Título e Subtítulo) */}
                 <div style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -1069,6 +1131,42 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                             {preset.label} ({preset.size}px)
                           </button>
                         ))}
+                      </div>
+
+                      {/* Escolha do Modelo: Apenas Horário ou Horário com Data */}
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                          Modelo de Exibição do Relógio
+                        </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setCustomSettings({ ...customSettings, clock_format: 'time_only' })}
+                            style={{
+                              padding: '8px 10px', borderRadius: 8, textAlign: 'left', cursor: 'pointer',
+                              background: (customSettings.clock_format !== 'time_and_date') ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                              border: (customSettings.clock_format !== 'time_and_date') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                              color: (customSettings.clock_format !== 'time_and_date') ? '#fff' : '#94a3b8'
+                            }}
+                          >
+                            <div style={{ fontSize: '0.78rem', fontWeight: 600 }}>Apenas Horário</div>
+                            <div style={{ fontSize: '0.70rem', opacity: 0.7 }}>Ex: 16:51</div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setCustomSettings({ ...customSettings, clock_format: 'time_and_date' })}
+                            style={{
+                              padding: '8px 10px', borderRadius: 8, textAlign: 'left', cursor: 'pointer',
+                              background: (customSettings.clock_format === 'time_and_date') ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                              border: (customSettings.clock_format === 'time_and_date') ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                              color: (customSettings.clock_format === 'time_and_date') ? '#fff' : '#94a3b8'
+                            }}
+                          >
+                            <div style={{ fontSize: '0.78rem', fontWeight: 600 }}>Horário com Data</div>
+                            <div style={{ fontSize: '0.70rem', opacity: 0.7 }}>Ex: 16:51 Sex, 23 Out</div>
+                          </button>
+                        </div>
                       </div>
                     </>
                   )}
@@ -1297,8 +1395,8 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                   type="text" 
                   className="form-input" 
                   maxLength={6}
-                  placeholder="Ex: 1234"
-                  value={customSettings.admin_exit_pin || '1234'}
+                  placeholder="Ex: 0000"
+                  value={customSettings.admin_exit_pin || '0000'}
                   onChange={e => setCustomSettings({ ...customSettings, admin_exit_pin: e.target.value.replace(/\D/g, '') })}
                   style={{ fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.25em', fontSize: '1.2rem', textAlign: 'center' }}
                 />

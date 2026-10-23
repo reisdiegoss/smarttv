@@ -73,6 +73,7 @@ class AppShortcut(Base):
     name = Column(String(100), nullable=False) # e.g. "Netflix", "YouTube", "Sky HDMI"
     package_name = Column(String(255), nullable=False) # "com.netflix.ninja" or "action.hdmi"
     icon_name = Column(String(100), nullable=False) # Lucide icon name or image url
+    icon_url = Column(String(500), nullable=True) # URL to custom uploaded logo/image
     is_system_app = Column(Boolean, default=False)
     is_hdmi = Column(Boolean, default=False)
     default_order = Column(Integer, default=0)
@@ -98,11 +99,14 @@ class TVGroup(Base):
         "title_font_size": 32,
         "show_clock": True,
         "clock_font_size": 24,
+        "clock_format": "time_only",
         "show_weather": True,
         "weather_city": "Salvador",
         "weather_temp": "28°C",
         "weather_condition": "sunny",
         "dock_icon_size": 72,
+        "dock_inner_icon_size": 36,
+        "dock_text_size": 13,
         "wifi_ssid": "SmartTV-Guest",
         "wifi_password": "bemvindoahotel",
         "wifi_qrcode_url": "",
@@ -160,11 +164,14 @@ class SmartTV(Base):
         "title_font_size": 32,
         "show_clock": True,
         "clock_font_size": 24,
+        "clock_format": "time_only",
         "show_weather": True,
         "weather_city": "Salvador",
         "weather_temp": "28°C",
         "weather_condition": "sunny",
         "dock_icon_size": 72,
+        "dock_inner_icon_size": 36,
+        "dock_text_size": 13,
         "wifi_ssid": "SmartTV-Guest",
         "wifi_password": "bemvindoahotel",
         "wifi_qrcode_url": "",
@@ -173,7 +180,8 @@ class SmartTV(Base):
         "dock_position": "bottom",
         "auto_hide_dock": True,
         "auto_hide_seconds": 15,
-        "volume_limit": 80
+        "volume_limit": 80,
+        "pin_code": "0000"
     })
     
     app_version = Column(String(50), default="1.0.0")

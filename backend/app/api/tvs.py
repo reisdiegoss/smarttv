@@ -765,6 +765,7 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
     # Senha de saída para launcher original (PIN do painel)
     effective_pin = tv.pin_code or merged_settings.get("pin_code") or (grp.custom_settings.get("pin_code") if grp and grp.custom_settings else "0000") or "0000"
     merged_settings["pin_code"] = effective_pin
+    merged_settings["admin_exit_pin"] = effective_pin
 
     # 1.1 Clima em Tempo Real Automatizado por Cidade / Município via Open-Meteo API
     if merged_settings.get("show_weather") is not False:
@@ -798,6 +799,7 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
                     "name": s.name,
                     "package_name": s.package_name,
                     "icon_name": s.icon_name,
+                    "icon_url": s.icon_url,
                     "is_hdmi": s.is_hdmi,
                     "is_system_app": s.is_system_app
                 })
@@ -811,6 +813,7 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
                 "name": s.name,
                 "package_name": s.package_name,
                 "icon_name": s.icon_name,
+                "icon_url": s.icon_url,
                 "is_hdmi": s.is_hdmi,
                 "is_system_app": s.is_system_app
             })

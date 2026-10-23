@@ -31,14 +31,14 @@ for root, dirs, files in os.walk(FRONTEND_DIST):
         print(f"Deploying frontend file: {f}")
         sftp.put(loc_f, rem_f)
 
-print("\n--- 2. Enviando APKs v1.0.7 ---")
+print("\n--- 2. Enviando APKs v1.0.8 ---")
 if os.path.exists(APK_PATH):
     target_apks = [
         "/opt/smarttv/frontend/dist/smarttv-launcher.apk",
-        "/opt/smarttv/frontend/dist/fasano-smarttv-v1.0.7.apk",
+        "/opt/smarttv/frontend/dist/fasano-smarttv-v1.0.8.apk",
         "/opt/smarttv/frontend/dist/fasano-smarttv-latest.apk",
         "/opt/smarttv/frontend/public/smarttv-launcher.apk",
-        "/opt/smarttv/frontend/public/fasano-smarttv-v1.0.7.apk",
+        "/opt/smarttv/frontend/public/fasano-smarttv-v1.0.8.apk",
         "/opt/smarttv/smarttv-launcher.apk"
     ]
     for target in target_apks:
@@ -47,8 +47,10 @@ if os.path.exists(APK_PATH):
 
 print("\n--- 3. Enviando Arquivos Backend ---")
 backend_files = [
+    ("backend/app/main.py", "/opt/smarttv/backend/app/main.py"),
     ("backend/app/services/weather_service.py", "/opt/smarttv/backend/app/services/weather_service.py"),
     ("backend/app/services/fias_service.py", "/opt/smarttv/backend/app/services/fias_service.py"),
+    ("backend/app/api/shortcuts.py", "/opt/smarttv/backend/app/api/shortcuts.py"),
     ("backend/app/api/pms.py", "/opt/smarttv/backend/app/api/pms.py"),
     ("backend/app/api/tvs.py", "/opt/smarttv/backend/app/api/tvs.py"),
     ("backend/app/api/groups.py", "/opt/smarttv/backend/app/api/groups.py"),

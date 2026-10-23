@@ -5,7 +5,18 @@ import { Tv, Play, Film, MonitorPlay } from 'lucide-react';
  * Renderiza os logotipos e identidades visuais oficiais dos aplicativos
  * para refletir exatamente os banners/ícones nativos que já existem na TV.
  */
-export default function BrandAppIcon({ name, packageName, isHdmi, isFocused }) {
+export default function BrandAppIcon({ name, packageName, iconUrl, isHdmi, isFocused, size = 34 }) {
+  if (iconUrl) {
+    return (
+      <img 
+        src={iconUrl} 
+        alt={name || 'App Icon'} 
+        style={{ width: size, height: size, objectFit: 'contain', borderRadius: 6 }} 
+        onError={(e) => { e.target.style.display = 'none'; }}
+      />
+    );
+  }
+
   const norm = (name || '').toLowerCase();
   const pkg = (packageName || '').toLowerCase();
 
@@ -15,7 +26,7 @@ export default function BrandAppIcon({ name, packageName, isHdmi, isFocused }) {
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
       }}>
-        <svg width="34" height="26" viewBox="0 0 36 28" fill="none">
+        <svg width={size} height={Math.round(size * 0.76)} viewBox="0 0 36 28" fill="none">
           <rect width="36" height="28" rx="6" fill="#E50914" />
           <path d="M10 8H8C6.9 8 6 8.9 6 10V18C6 19.1 6.9 20 8 20H10V18H8V10H10V8Z" fill="#FFF"/>
           <path d="M18 8L15 14L12 8H10L14 15V20H16V15L20 8H18Z" fill="#FFF"/>

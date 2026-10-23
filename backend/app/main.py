@@ -300,6 +300,7 @@ async def lifespan(app: FastAPI):
         await conn.execute(text("ALTER TABLE smart_tvs ADD COLUMN IF NOT EXISTS guest_name VARCHAR(150);"))
         await conn.execute(text("ALTER TABLE smart_tvs ADD COLUMN IF NOT EXISTS pin_code VARCHAR(20);"))
         await conn.execute(text("ALTER TABLE smart_tvs ADD COLUMN IF NOT EXISTS group_id INTEGER;"))
+        await conn.execute(text("ALTER TABLE app_shortcuts ADD COLUMN IF NOT EXISTS icon_url VARCHAR(500);"))
     await seed_initial_data()
     # Inicia ouvinte em segundo plano FIAS (IFC8 192.168.162.18)
     fias_service.start()

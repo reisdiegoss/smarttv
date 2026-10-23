@@ -279,8 +279,9 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
               const dockBase = custom.dock_icon_size || 72;
               const dockBtnWidth = Math.round(dockBase * 1.65);
               const dockBtnHeight = Math.round(dockBase * 1.15);
-              const dockIconHeight = Math.round(dockBase * 0.44);
-              const dockTextSize = Math.max(11, Math.round(dockBase * 0.175));
+              const dockInnerSize = custom.dock_inner_icon_size || Math.round(dockBase * 0.44);
+              const dockIconHeight = dockInnerSize;
+              const dockTextSize = custom.dock_text_size || Math.max(11, Math.round(dockBase * 0.175));
               const qrSizePx = Math.round((custom.wifi_qr_size || 110) * 0.42);
 
               const getWeatherIcon = (iconSize = 18) => {
@@ -347,7 +348,7 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                       </div>
                     )}
 
-                    {/* Relógio Digital com Tamanho Dinâmico */}
+                    {/* Relógio Digital com Tamanho Dinâmico e Formato */}
                     {showClock && (
                       <div style={{
                         background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(10px)',
@@ -355,13 +356,15 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                         padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8,
                         boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                       }}>
-                        <Clock size={16} color="#38bdf8" />
+                        <Clock size={Math.max(14, Math.round(clockSizePx * 0.72))} color="#38bdf8" />
                         <span style={{ fontSize: `${clockSizePx}px`, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
                           {formattedTime}
                         </span>
-                        <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', textTransform: 'capitalize' }}>
-                          {formattedDate}
-                        </span>
+                        {custom.clock_format === 'time_and_date' && (
+                          <span style={{ fontSize: `${Math.max(10, Math.round(clockSizePx * 0.52))}px`, color: 'rgba(255,255,255,0.7)', textTransform: 'capitalize' }}>
+                            {formattedDate}
+                          </span>
+                        )}
                       </div>
                     )}
 
@@ -484,8 +487,10 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                             <BrandAppIcon 
                               name={item.name} 
                               packageName={item.package_name} 
+                              iconUrl={item.icon_url}
                               isHdmi={isSky} 
                               isFocused={isFocused} 
+                              size={dockInnerSize}
                             />
                           </div>
                           <span style={{ 

@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.models.schema import AppShortcut
-from app.models.dto import AppShortcutOut, AppShortcutBase
+from app.models.dto import AppShortcutOut, AppShortcutBase, AppShortcutUpdate
 
 router = APIRouter(prefix="/shortcuts", tags=["Shortcuts"])
 
@@ -13,6 +13,7 @@ DEFAULT_SHORTCUTS = [
         "name": "TV SKY (HDMI)",
         "package_name": "action.switch_hdmi",
         "icon_name": "Tv",
+        "icon_url": None,
         "is_system_app": True,
         "is_hdmi": True,
         "default_order": 1
@@ -21,6 +22,7 @@ DEFAULT_SHORTCUTS = [
         "name": "Netflix",
         "package_name": "com.netflix.ninja",
         "icon_name": "PlaySquare",
+        "icon_url": None,
         "is_system_app": False,
         "is_hdmi": False,
         "default_order": 2
@@ -29,6 +31,7 @@ DEFAULT_SHORTCUTS = [
         "name": "YouTube",
         "package_name": "com.google.android.youtube.tv",
         "icon_name": "Youtube",
+        "icon_url": None,
         "is_system_app": False,
         "is_hdmi": False,
         "default_order": 3
@@ -37,6 +40,7 @@ DEFAULT_SHORTCUTS = [
         "name": "Prime Video",
         "package_name": "com.amazon.amazonvideo.livingroom",
         "icon_name": "Film",
+        "icon_url": None,
         "is_system_app": False,
         "is_hdmi": False,
         "default_order": 4
@@ -45,6 +49,7 @@ DEFAULT_SHORTCUTS = [
         "name": "Globoplay",
         "package_name": "com.globo.globotv",
         "icon_name": "Tv2",
+        "icon_url": None,
         "is_system_app": False,
         "is_hdmi": False,
         "default_order": 5
@@ -53,6 +58,7 @@ DEFAULT_SHORTCUTS = [
         "name": "Disney+",
         "package_name": "com.disney.disneyplus",
         "icon_name": "Sparkles",
+        "icon_url": None,
         "is_system_app": False,
         "is_hdmi": False,
         "default_order": 6
@@ -61,6 +67,7 @@ DEFAULT_SHORTCUTS = [
         "name": "Max",
         "package_name": "com.wbd.stream",
         "icon_name": "Clapperboard",
+        "icon_url": None,
         "is_system_app": False,
         "is_hdmi": False,
         "default_order": 7
@@ -69,6 +76,7 @@ DEFAULT_SHORTCUTS = [
         "name": "Spotify",
         "package_name": "com.spotify.tv.android",
         "icon_name": "Music",
+        "icon_url": None,
         "is_system_app": False,
         "is_hdmi": False,
         "default_order": 8
@@ -87,11 +95,38 @@ async def create_shortcut(payload: AppShortcutBase, db: AsyncSession = Depends(g
         name=payload.name,
         package_name=payload.package_name,
         icon_name=payload.icon_name,
+        icon_url=payload.icon_url,
         is_system_app=payload.is_system_app,
         is_hdmi=payload.is_hdmi,
         default_order=payload.default_order
     )
     db.add(shortcut)
+    await db.commit()
+    await db.refresh(shortcut)
+    return shortcut
+
+@router.put("/{shortcut_id}", response_model=AppShortcutOut)
+async def update_shortcut(shortcut_id: int, payload: AppShortcutUpdate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(AppShortcut).where(AppShortcut.id == shortcut_id))
+    shortcut = result.scalar_one_or_none()
+    if not shortcut:
+        raise HTTPException(status_code=404, detail="Atalho não encontrado")
+    
+    if payload.name is not None:
+        shortcut.name = payload.name.strip()
+    if payload.package_name is not None:
+        shortcut.package_name = payload.package_name.strip()
+    if payload.icon_name is not None:
+        shortcut.icon_name = payload.icon_name.strip()
+    if payload.icon_url is not None:
+        shortcut.icon_url = payload.icon_url.strip() or None
+    if payload.is_system_app is not None:
+        shortcut.is_system_app = payload.is_system_app
+    if payload.is_hdmi is not None:
+        shortcut.is_hdmi = payload.is_hdmi
+    if payload.default_order is not None:
+        shortcut.default_order = payload.default_order
+    
     await db.commit()
     await db.refresh(shortcut)
     return shortcut
