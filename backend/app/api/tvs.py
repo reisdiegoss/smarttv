@@ -862,10 +862,13 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
             "config": effective_layout.config
         }
 
-    # 5. HDMI com Herança
+    # 5. HDMI com Herança e Customização Visual (Cor de Fundo e Ícone)
     effective_hdmi_id = tv.hdmi_input_id if tv.hdmi_input_id is not None else (grp.hdmi_input_id if grp else "HDMI 1")
     effective_hdmi_label = tv.hdmi_label if tv.hdmi_label is not None else (grp.hdmi_label if grp else "TV SKY")
     is_hdmi_enabled = effective_hdmi_id not in ("NONE", "DISABLED", None, "") and not merged_settings.get("hide_hdmi", False)
+
+    hdmi_sc_res = await db.execute(select(AppShortcut).where(AppShortcut.is_hdmi == True))
+    hdmi_sc = hdmi_sc_res.scalars().first()
 
     return TVClientConfig(
         device_id=tv.device_id,
@@ -877,7 +880,9 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
             "enabled": is_hdmi_enabled,
             "input_id": effective_hdmi_id if is_hdmi_enabled else "NONE",
             "label": effective_hdmi_label or "TV SKY",
-            "action": "action.switch_hdmi"
+            "action": "action.switch_hdmi",
+            "background_color": hdmi_sc.background_color if hdmi_sc else None,
+            "icon_url": hdmi_sc.icon_url if hdmi_sc else None
         },
         shortcuts=shortcuts_data,
         playlist=playlist_data,

@@ -212,9 +212,9 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
               {/* Icon Container with Transparency & Custom Background */}
               <div style={{
                 width: 60, height: 60, borderRadius: 16,
-                background: sc.is_hdmi 
-                  ? 'rgba(239, 68, 68, 0.2)' 
-                  : (sc.background_color || 'rgba(30, 41, 59, 0.8)'),
+                background: sc.background_color 
+                  ? sc.background_color 
+                  : (sc.is_hdmi ? 'rgba(239, 68, 68, 0.25)' : 'rgba(30, 41, 59, 0.8)'),
                 border: sc.is_hdmi ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
@@ -570,9 +570,9 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
                 }}>
                   <div style={{
                     width: 58, height: 58, borderRadius: 14,
-                    background: formIsHdmi 
-                      ? 'rgba(239, 68, 68, 0.4)' 
-                      : (formBgColor || 'rgba(0, 0, 0, 0.45)'),
+                    background: formBgColor 
+                      ? formBgColor 
+                      : (formIsHdmi ? 'rgba(239, 68, 68, 0.4)' : 'rgba(0, 0, 0, 0.45)'),
                     border: '1.5px solid rgba(255, 255, 255, 0.3)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: '0 4px 14px rgba(0,0,0,0.4)',

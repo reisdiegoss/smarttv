@@ -445,23 +445,25 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                           style={{
                             position: 'relative',
                             zIndex: isFocused ? 10 : 1,
-                            background: isSky
-                              ? (isFocused 
-                                  ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(185, 28, 28, 0.95) 100%)' 
-                                  : 'rgba(239, 68, 68, 0.25)')
-                              : (item.background_color
-                                  ? item.background_color
+                            background: item.background_color
+                              ? item.background_color
+                              : (isSky
+                                  ? (isFocused 
+                                      ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(185, 28, 28, 0.95) 100%)' 
+                                      : 'rgba(239, 68, 68, 0.25)')
                                   : (isFocused 
                                       ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%)' 
                                       : 'rgba(0, 0, 0, 0.45)')),
                             backdropFilter: 'blur(12px)',
                             border: isFocused 
-                              ? (isSky ? '2.5px solid #ffffff' : '2.5px solid #3b82f6')
-                              : (isSky ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(255, 255, 255, 0.15)'),
+                              ? (item.background_color ? '2.5px solid #ffffff' : (isSky ? '2.5px solid #ffffff' : '2.5px solid #3b82f6'))
+                              : (item.background_color ? '1px solid rgba(255, 255, 255, 0.25)' : (isSky ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(255, 255, 255, 0.15)')),
                             boxShadow: isFocused 
-                              ? (isSky 
-                                  ? '0 0 0 2px rgba(255,255,255,0.85), 0 14px 28px rgba(0, 0, 0, 0.7), 0 0 30px rgba(239, 68, 68, 0.6)'
-                                  : '0 0 0 2px rgba(255,255,255,0.85), 0 14px 28px rgba(0, 0, 0, 0.7), 0 0 30px rgba(59, 130, 246, 0.6)')
+                              ? (item.background_color 
+                                  ? '0 0 0 2px rgba(255,255,255,0.85), 0 14px 28px rgba(0, 0, 0, 0.7)'
+                                  : (isSky 
+                                      ? '0 0 0 2px rgba(255,255,255,0.85), 0 14px 28px rgba(0, 0, 0, 0.7), 0 0 30px rgba(239, 68, 68, 0.6)'
+                                      : '0 0 0 2px rgba(255,255,255,0.85), 0 14px 28px rgba(0, 0, 0, 0.7), 0 0 30px rgba(59, 130, 246, 0.6)'))
                               : '0 4px 12px rgba(0, 0, 0, 0.25)',
                             transform: isFocused ? 'scale(1.08) translateY(-4px)' : 'scale(1)',
                             willChange: 'transform, box-shadow',
@@ -617,10 +619,10 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                             style={{
                               display: 'flex', alignItems: 'center', gap: 14,
                               padding: '10px 16px', borderRadius: 14,
-                              background: isSky 
-                                ? (isFocused ? '#ef4444' : 'rgba(239, 68, 68, 0.22)')
-                                : (item.background_color 
-                                    ? item.background_color 
+                              background: item.background_color 
+                                ? item.background_color 
+                                : (isSky 
+                                    ? (isFocused ? '#ef4444' : 'rgba(239, 68, 68, 0.22)')
                                     : (isFocused ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'rgba(255, 255, 255, 0.06)')),
                               border: isFocused ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
                               boxShadow: isFocused ? '0 0 20px rgba(59, 130, 246, 0.5)' : 'none',
@@ -671,10 +673,10 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                           key={item.id || idx}
                           onClick={() => { setFocusedIndex(idx); handleSelectShortcut(item); }}
                           style={{
-                            background: isSky
-                              ? (isFocused ? '#ef4444' : 'rgba(239, 68, 68, 0.25)')
-                              : (item.background_color 
-                                  ? item.background_color 
+                            background: item.background_color 
+                              ? item.background_color 
+                              : (isSky
+                                  ? (isFocused ? '#ef4444' : 'rgba(239, 68, 68, 0.25)')
                                   : (isFocused ? '#2563eb' : 'rgba(255,255,255,0.08)')),
                             border: isFocused ? '2px solid #fff' : '1px solid transparent',
                             boxShadow: isFocused ? '0 0 20px rgba(59, 130, 246, 0.6)' : 'none',

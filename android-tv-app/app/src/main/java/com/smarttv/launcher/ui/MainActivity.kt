@@ -1449,8 +1449,28 @@ class MainActivity : AppCompatActivity() {
 
             textSky.setTextSize(TypedValue.COMPLEX_UNIT_SP, dockTextSize)
             textSky.text = config.hdmi.label
-            iconSky.setImageResource(R.drawable.ic_hdmi_tv)
-            btnSky.setBackgroundResource(R.drawable.bg_shortcut_sky)
+
+            val hdmiShortcut = config.shortcuts.firstOrNull { it.isHdmi }
+            val hdmiBgColor = hdmiShortcut?.backgroundColor ?: config.hdmi.backgroundColor
+            val hdmiIconUrl = hdmiShortcut?.iconUrl ?: config.hdmi.iconUrl
+
+            if (!hdmiBgColor.isNullOrBlank()) {
+                applyShortcutBackground(btnSky, hdmiBgColor)
+            } else {
+                btnSky.setBackgroundResource(R.drawable.bg_shortcut_sky)
+            }
+
+            if (!hdmiIconUrl.isNullOrBlank()) {
+                val fullUrl = if (hdmiIconUrl.startsWith("http")) hdmiIconUrl 
+                              else "${SmartTVApp.instance.getServerUrl()}${hdmiIconUrl}"
+                iconSky.load(fullUrl) {
+                    crossfade(true)
+                    error(R.drawable.ic_hdmi_tv)
+                    placeholder(R.drawable.ic_hdmi_tv)
+                }
+            } else {
+                iconSky.setImageResource(R.drawable.ic_hdmi_tv)
+            }
 
             btnSky.setOnClickListener {
                 exoPlayer?.pause()
@@ -1533,8 +1553,28 @@ class MainActivity : AppCompatActivity() {
             val iconSky = btnSky.findViewById<ImageView>(R.id.ivShortcutIcon)
 
             textSky.text = config.hdmi.label
-            iconSky.setImageResource(R.drawable.ic_hdmi_tv)
-            btnSky.setBackgroundResource(R.drawable.bg_shortcut_sky)
+
+            val hdmiShortcut = config.shortcuts.firstOrNull { it.isHdmi }
+            val hdmiBgColor = hdmiShortcut?.backgroundColor ?: config.hdmi.backgroundColor
+            val hdmiIconUrl = hdmiShortcut?.iconUrl ?: config.hdmi.iconUrl
+
+            if (!hdmiBgColor.isNullOrBlank()) {
+                applyShortcutBackground(btnSky, hdmiBgColor)
+            } else {
+                btnSky.setBackgroundResource(R.drawable.bg_shortcut_sky)
+            }
+
+            if (!hdmiIconUrl.isNullOrBlank()) {
+                val fullUrl = if (hdmiIconUrl.startsWith("http")) hdmiIconUrl 
+                              else "${SmartTVApp.instance.getServerUrl()}${hdmiIconUrl}"
+                iconSky.load(fullUrl) {
+                    crossfade(true)
+                    error(R.drawable.ic_hdmi_tv)
+                    placeholder(R.drawable.ic_hdmi_tv)
+                }
+            } else {
+                iconSky.setImageResource(R.drawable.ic_hdmi_tv)
+            }
 
             btnSky.setOnClickListener {
                 exoPlayer?.pause()

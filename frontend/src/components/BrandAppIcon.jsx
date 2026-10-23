@@ -33,7 +33,6 @@ export default function BrandAppIcon({ name, packageName, iconUrl, isHdmi, isFoc
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
       }}>
         <svg width={size} height={Math.round(size * 0.76)} viewBox="0 0 36 28" fill="none">
-          <rect width="36" height="28" rx="6" fill="#E50914" />
           <path d="M10 8H8C6.9 8 6 8.9 6 10V18C6 19.1 6.9 20 8 20H10V18H8V10H10V8Z" fill="#FFF"/>
           <path d="M18 8L15 14L12 8H10L14 15V20H16V15L20 8H18Z" fill="#FFF"/>
           <path d="M28 8H22V20H24V15H28C29.1 15 30 14.1 30 13V10C30 8.9 29.1 8 28 8ZM28 13H24V10H28V13Z" fill="#FFF"/>

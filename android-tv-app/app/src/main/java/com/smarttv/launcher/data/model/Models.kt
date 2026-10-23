@@ -18,7 +18,9 @@ data class HdmiConfig(
     @SerializedName("enabled") val enabled: Boolean = true,
     @SerializedName("input_id") val inputId: String,
     @SerializedName("label") val label: String,
-    @SerializedName("action") val action: String
+    @SerializedName("action") val action: String,
+    @SerializedName("background_color") val backgroundColor: String? = null,
+    @SerializedName("icon_url") val iconUrl: String? = null
 )
 
 data class ShortcutItem(
