@@ -56,10 +56,13 @@ export default function App() {
   const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
   const [editingLayout, setEditingLayout] = useState(null);
 
-  // Keep ref to pause background polling while user is actively filling out modals
+  // Keep ref to pause background polling while user is actively filling out modals OR simulating a TV
   const isAnyModalOpen = isTvModalOpen || isPairModalOpen || isPlaylistModalOpen || isLayoutModalOpen;
   const isModalOpenRef = useRef(isAnyModalOpen);
   isModalOpenRef.current = isAnyModalOpen;
+
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
 
   // Load all initial data from backend API
   const loadData = async () => {
@@ -81,10 +84,14 @@ export default function App() {
       setGroups(groupsRes || []);
       setServerOnline(true);
 
-      // Select first TV for simulator if none selected
-      if (!selectedTvForSimulator && tvsRes && tvsRes.length > 0) {
-        setSelectedTvForSimulator(tvsRes[0]);
-      }
+      // Select first TV for simulator ONLY if none selected yet, and preserve the active simulation room
+      setSelectedTvForSimulator(prev => {
+        if (!prev) {
+          return (tvsRes && tvsRes.length > 0) ? tvsRes[0] : null;
+        }
+        const found = (tvsRes || []).find(t => t.id === prev.id);
+        return found || prev;
+      });
     } catch (err) {
       console.error('Erro ao conectar com a API:', err);
       setServerOnline(false);
@@ -95,10 +102,11 @@ export default function App() {
     if (!authToken) return;
     loadData();
     const interval = setInterval(() => {
-      if (!isModalOpenRef.current) {
+      // NUNCA disparar refresh em background se houver modal aberto OU se estiver na tela de Simulação!
+      if (!isModalOpenRef.current && activeTabRef.current !== 'simulator') {
         loadData();
       }
-    }, 10000); // Polling every 10s only if no modal is open
+    }, 10000); // Polling every 10s only if no modal is open and not simulating
 
     // Setup WebSocket for instant real-time events
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -108,7 +116,7 @@ export default function App() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.event === 'tv_update' && !isModalOpenRef.current) {
+        if (msg.event === 'tv_update' && !isModalOpenRef.current && activeTabRef.current !== 'simulator') {
           loadData();
         }
       } catch (e) {
@@ -307,7 +315,7 @@ export default function App() {
   const totalMedia = mediaList.length;
 
   // Selected TV object for Simulator
-  const currentSimulatorTv = tvs.find(t => t.id === selectedTvForSimulator?.id) || tvs[0] || null;
+  const currentSimulatorTv = tvs.find(t => t.id === selectedTvForSimulator?.id) || selectedTvForSimulator || tvs[0] || null;
   const currentSimulatorLayout = layouts.find(l => l.id === currentSimulatorTv?.layout_id) || layouts[0] || null;
   const currentSimulatorPlaylist = playlists.find(p => p.id === currentSimulatorTv?.playlist_id) || playlists[0] || null;
 
@@ -954,16 +962,21 @@ export default function App() {
               </span>
               <select 
                 className="form-select"
-                style={{ maxWidth: 300 }}
-                value={selectedTvForSimulator?.id || ''}
+                style={{ maxWidth: 360 }}
+                value={currentSimulatorTv?.id || ''}
                 onChange={e => {
                   const found = tvs.find(t => t.id === parseInt(e.target.value));
                   if (found) setSelectedTvForSimulator(found);
                 }}
               >
-                {tvs.map(tv => (
+                {[...tvs].sort((a, b) => {
+                  const numA = parseInt((a.uh_number || a.name || '').replace(/\D/g, ''), 10);
+                  const numB = parseInt((b.uh_number || b.name || '').replace(/\D/g, ''), 10);
+                  if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
+                  return (a.name || '').localeCompare(b.name || '');
+                }).map(tv => (
                   <option key={tv.id} value={tv.id}>
-                    {tv.name} ({tv.room_group}) - {tv.layout?.name || 'Hotel Luxo'}
+                    {tv.name} {tv.uh_number ? `(UH ${tv.uh_number})` : ''} — {tv.guest_name ? `👤 ${tv.guest_name}` : '🟢 Vago'}
                   </option>
                 ))}
               </select>
