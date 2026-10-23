@@ -31,19 +31,37 @@ for root, dirs, files in os.walk(FRONTEND_DIST):
         print(f"Deploying frontend file: {f}")
         sftp.put(loc_f, rem_f)
 
-print("\n--- 2. Enviando APKs v1.0.8 ---")
+import re
+app_version = "1.0.8"
+gradle_file = os.path.join(BASE_DIR, "android-tv-app", "app", "build.gradle.kts")
+if os.path.exists(gradle_file):
+    with open(gradle_file, "r", encoding="utf-8") as gf:
+        m = re.search(r'versionName\s*=\s*"([^"]+)"', gf.read())
+        if m:
+            app_version = m.group(1)
+
+print(f"\n--- 2. Enviando APKs v{app_version} ---")
 if os.path.exists(APK_PATH):
     target_apks = [
+        "/opt/smarttv/smarttv-launcher.apk",
+        "/opt/smarttv/fasano-smarttv-latest.apk",
+        f"/opt/smarttv/fasano-smarttv-v{app_version}.apk",
+        "/smarttv-launcher.apk",
+        "/fasano-smarttv-latest.apk",
+        f"/fasano-smarttv-v{app_version}.apk",
         "/opt/smarttv/frontend/dist/smarttv-launcher.apk",
-        "/opt/smarttv/frontend/dist/fasano-smarttv-v1.0.8.apk",
         "/opt/smarttv/frontend/dist/fasano-smarttv-latest.apk",
+        f"/opt/smarttv/frontend/dist/fasano-smarttv-v{app_version}.apk",
         "/opt/smarttv/frontend/public/smarttv-launcher.apk",
-        "/opt/smarttv/frontend/public/fasano-smarttv-v1.0.8.apk",
-        "/opt/smarttv/smarttv-launcher.apk"
+        "/opt/smarttv/frontend/public/fasano-smarttv-latest.apk",
+        f"/opt/smarttv/frontend/public/fasano-smarttv-v{app_version}.apk"
     ]
     for target in target_apks:
         print(f"Copiando APK -> {target}")
-        sftp.put(APK_PATH, target)
+        try:
+            sftp.put(APK_PATH, target)
+        except Exception as e:
+            print(f"Aviso ao copiar para {target}: {e}")
 
 print("\n--- 3. Enviando Arquivos Backend ---")
 backend_files = [

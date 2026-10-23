@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.StateListDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -27,6 +29,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import coil.load
+import com.smarttv.launcher.BuildConfig
 import com.smarttv.launcher.R
 import com.smarttv.launcher.SmartTVApp
 import com.smarttv.launcher.data.api.TVApiService
@@ -586,7 +589,7 @@ class MainActivity : AppCompatActivity() {
     private fun downloadAndInstallApkUpdate() {
         exoPlayer?.pause()
         val serverUrl = SmartTVApp.instance.getServerUrl().removeSuffix("/")
-        val downloadUrl = "$serverUrl/fasano-smarttv-v1.0.5.apk"
+        val downloadUrl = "$serverUrl/smarttv-launcher.apk"
 
         val progressDialog = android.app.ProgressDialog(this).apply {
             setTitle("📥 Atualização Fasano SMARTTV")
@@ -612,7 +615,7 @@ class MainActivity : AppCompatActivity() {
 
                 if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
                     connection.disconnect()
-                    targetUrl = java.net.URL("$serverUrl/smarttv-launcher.apk")
+                    targetUrl = java.net.URL("$serverUrl/fasano-smarttv-latest.apk")
                     connection = (targetUrl.openConnection() as java.net.HttpURLConnection).apply {
                         connectTimeout = 10000
                         readTimeout = 30000
@@ -622,7 +625,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val fileLength = connection.contentLength
-                val outputFile = java.io.File(externalCacheDir ?: cacheDir, "update-fasano-smarttv.apk")
+                val outputFile = java.io.File(externalCacheDir ?: cacheDir, "smarttv-launcher.apk")
                 if (outputFile.exists()) outputFile.delete()
 
                 val input = java.io.BufferedInputStream(connection.inputStream)
@@ -633,7 +636,7 @@ class MainActivity : AppCompatActivity() {
                 var count: Int
 
                 withContext(Dispatchers.Main) {
-                    progressDialog.setMessage("Baixando Fasano SMARTTV v1.0.5...")
+                    progressDialog.setMessage("Baixando atualização da Launcher (v${BuildConfig.VERSION_NAME})...")
                 }
 
                 while (input.read(data).also { count = it } != -1) {
@@ -862,7 +865,7 @@ class MainActivity : AppCompatActivity() {
                         deviceId = deviceId,
                         pairingCode = "",
                         ipAddress = null,
-                        appVersion = "1.0.5"
+                        appVersion = BuildConfig.VERSION_NAME
                     )
                 )
 
@@ -949,7 +952,7 @@ class MainActivity : AppCompatActivity() {
                         tvId = tv.id,
                         deviceId = deviceId,
                         ipAddress = null,
-                        appVersion = "1.0.5"
+                        appVersion = BuildConfig.VERSION_NAME
                     )
                 )
 
@@ -986,7 +989,7 @@ class MainActivity : AppCompatActivity() {
                             PingRequest(
                                 deviceId = deviceId,
                                 ipAddress = null,
-                                appVersion = "1.0.5"
+                                appVersion = BuildConfig.VERSION_NAME
                             )
                         )
                         val isPaired = (response["is_paired"] as? Boolean) ?: false
@@ -1476,7 +1479,7 @@ class MainActivity : AppCompatActivity() {
 
             textApp.setTextSize(TypedValue.COMPLEX_UNIT_SP, dockTextSize)
             textApp.text = sc.name
-            btnApp.setBackgroundResource(R.drawable.bg_shortcut_item)
+            applyShortcutBackground(btnApp, sc.backgroundColor)
 
             if (!sc.iconUrl.isNullOrBlank()) {
                 val fullUrl = if (sc.iconUrl.startsWith("http")) sc.iconUrl 
@@ -1554,7 +1557,7 @@ class MainActivity : AppCompatActivity() {
             val iconApp = btnApp.findViewById<ImageView>(R.id.ivShortcutIcon)
 
             textApp.text = sc.name
-            btnApp.setBackgroundResource(R.drawable.bg_shortcut_item)
+            applyShortcutBackground(btnApp, sc.backgroundColor)
 
             if (!sc.iconUrl.isNullOrBlank()) {
                 val fullUrl = if (sc.iconUrl.startsWith("http")) sc.iconUrl 
@@ -1715,6 +1718,71 @@ class MainActivity : AppCompatActivity() {
         return (dp * resources.displayMetrics.density).toInt()
     }
 
+    private fun parseHexOrRgbaColor(colorStr: String?): Int? {
+        if (colorStr.isNullOrBlank()) return null
+        val c = colorStr.trim()
+        if (c.equals("transparent", ignoreCase = true)) return Color.TRANSPARENT
+        try {
+            if (c.startsWith("#")) {
+                return Color.parseColor(c)
+            }
+            if (c.startsWith("rgba", ignoreCase = true)) {
+                val clean = c.substringAfter("(").substringBefore(")")
+                val parts = clean.split(",")
+                if (parts.size >= 4) {
+                    val r = parts[0].trim().toInt()
+                    val g = parts[1].trim().toInt()
+                    val b = parts[2].trim().toInt()
+                    val a = (parts[3].trim().toFloat() * 255).toInt().coerceIn(0, 255)
+                    return Color.argb(a, r, g, b)
+                }
+            }
+            if (c.startsWith("rgb", ignoreCase = true)) {
+                val clean = c.substringAfter("(").substringBefore(")")
+                val parts = clean.split(",")
+                if (parts.size >= 3) {
+                    val r = parts[0].trim().toInt()
+                    val g = parts[1].trim().toInt()
+                    val b = parts[2].trim().toInt()
+                    return Color.rgb(r, g, b)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Erro ao converter cor: $colorStr", e)
+        }
+        return null
+    }
+
+    private fun applyShortcutBackground(view: View, customColorStr: String?) {
+        val customColor = parseHexOrRgbaColor(customColorStr)
+        if (customColor == null) {
+            view.setBackgroundResource(R.drawable.bg_shortcut_item)
+            return
+        }
+
+        val stateList = StateListDrawable()
+
+        // Estado Focado (Borda branca e destaque)
+        val focusedShape = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(16).toFloat()
+            setColor(customColor)
+            setStroke(dpToPx(3), Color.WHITE)
+        }
+        stateList.addState(intArrayOf(android.R.attr.state_focused), focusedShape)
+
+        // Estado Normal (Borda sutil semi-transparente)
+        val normalShape = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(16).toFloat()
+            setColor(customColor)
+            setStroke(dpToPx(1), Color.parseColor("#26FFFFFF"))
+        }
+        stateList.addState(intArrayOf(), normalShape)
+
+        view.background = stateList
+    }
+
     /**
      * Heartbeat contínuo:
      * 1. Atualiza status Online no painel a cada 5s
@@ -1733,7 +1801,7 @@ class MainActivity : AppCompatActivity() {
                             PingRequest(
                                 deviceId = deviceId,
                                 ipAddress = null,
-                                appVersion = "1.0.5",
+                                appVersion = BuildConfig.VERSION_NAME,
                                 cleanupCompleted = reportCleanup
                             )
                         )

@@ -4,7 +4,7 @@ import {
   Settings, CheckCircle2, AlertCircle, Wifi, Play, Edit, 
   Trash2, QrCode, HardDrive, Eye, ExternalLink, Cpu,
   Shield, Download, LogOut, User as UserIcon, Send,
-  FolderTree, Building2
+  FolderTree, Building2, ChevronDown
 } from 'lucide-react';
 
 import TVSimulator from './components/TVSimulator';
@@ -56,6 +56,18 @@ export default function App() {
   const [editingPlaylist, setEditingPlaylist] = useState(null);
   const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
   const [editingLayout, setEditingLayout] = useState(null);
+  const [isApkMenuOpen, setIsApkMenuOpen] = useState(false);
+  const apkMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (apkMenuRef.current && !apkMenuRef.current.contains(e.target)) {
+        setIsApkMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   // Keep ref to pause background polling while user is actively filling out modals OR simulating a TV
   const isAnyModalOpen = isTvModalOpen || isPairModalOpen || isPlaylistModalOpen || isLayoutModalOpen;
@@ -463,24 +475,173 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <a 
-              href="/fasano-smarttv-v1.0.7.apk" 
-              download="fasano-smarttv-v1.0.7.apk"
-              className="btn btn-secondary"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                background: 'rgba(59, 130, 246, 0.12)',
-                borderColor: 'rgba(59, 130, 246, 0.35)',
-                color: '#60a5fa',
-                textDecoration: 'none',
-                fontWeight: 600
-              }}
-              title="Baixar APK instalador da Launcher para Android / Google TV (v1.0.7)"
-            >
-              <Download size={16} /> Baixar APK v1.0.7
-            </a>
+            {/* Split Button de Download Direto + Opções */}
+            <div ref={apkMenuRef} style={{ position: 'relative', display: 'inline-flex' }}>
+              <a
+                href="/fasano-smarttv-v1.0.8.apk"
+                download="fasano-smarttv-v1.0.8.apk"
+                className="btn btn-secondary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  borderColor: 'rgba(59, 130, 246, 0.45)',
+                  color: '#60a5fa',
+                  fontWeight: 700,
+                  padding: '8px 14px',
+                  textDecoration: 'none',
+                  borderTopRightRadius: 0,
+                  borderBottomRightRadius: 0
+                }}
+                title="Download direto do APK v1.0.8 (fasano-smarttv-v1.0.8.apk)"
+              >
+                <Download size={16} /> Baixar APK v1.0.8
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setIsApkMenuOpen(!isApkMenuOpen)}
+                style={{
+                  background: 'rgba(59, 130, 246, 0.22)',
+                  border: '1px solid rgba(59, 130, 246, 0.45)',
+                  borderLeft: 'none',
+                  borderTopRightRadius: 8,
+                  borderBottomRightRadius: 8,
+                  color: '#60a5fa',
+                  padding: '8px 10px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Mais opções de download (Universal, Latest e GitHub Releases)"
+              >
+                <ChevronDown size={15} />
+              </button>
+
+              {isApkMenuOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '115%',
+                  right: 0,
+                  width: 320,
+                  background: 'rgba(15, 23, 42, 0.98)',
+                  backdropFilter: 'blur(16px)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: 14,
+                  boxShadow: '0 16px 36px rgba(0, 0, 0, 0.7)',
+                  padding: 10,
+                  zIndex: 1000,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6
+                }}>
+                  <div style={{ padding: '4px 8px', fontSize: '0.70rem', color: 'var(--text-muted)', borderBottom: '1px solid rgba(255,255,255,0.08)', fontWeight: 700 }}>
+                    DISPONÍVEL NA RAIZ & DOWNLOAD DIRETO
+                  </div>
+
+                  <a
+                    href="/fasano-smarttv-v1.0.8.apk"
+                    download="fasano-smarttv-v1.0.8.apk"
+                    onClick={() => setIsApkMenuOpen(false)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      background: 'rgba(59, 130, 246, 0.14)',
+                      color: '#93c5fd',
+                      textDecoration: 'none',
+                      fontSize: '0.82rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    <Download size={16} color="#38bdf8" />
+                    <div>
+                      <div>Baixar Versão Oficial (v1.0.8)</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>fasano-smarttv-v1.0.8.apk</div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="/smarttv-launcher.apk"
+                    download="smarttv-launcher.apk"
+                    onClick={() => setIsApkMenuOpen(false)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      color: '#e2e8f0',
+                      textDecoration: 'none',
+                      fontSize: '0.82rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    <HardDrive size={16} color="#94a3b8" />
+                    <div>
+                      <div>APK Universal na Raiz</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>smarttv-launcher.apk (raiz do sistema /opt)</div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="/fasano-smarttv-latest.apk"
+                    download="fasano-smarttv-latest.apk"
+                    onClick={() => setIsApkMenuOpen(false)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      color: '#e2e8f0',
+                      textDecoration: 'none',
+                      fontSize: '0.82rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    <HardDrive size={16} color="#94a3b8" />
+                    <div>
+                      <div>APK Alias Flutuante</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>fasano-smarttv-latest.apk</div>
+                    </div>
+                  </a>
+
+                  <a
+                    href="https://github.com/reisdiegoss/smarttv/releases"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setIsApkMenuOpen(false)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      background: 'rgba(168, 85, 247, 0.1)',
+                      color: '#c084fc',
+                      textDecoration: 'none',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      borderTop: '1px solid rgba(255,255,255,0.08)',
+                      marginTop: 2
+                    }}
+                  >
+                    <ExternalLink size={16} color="#c084fc" />
+                    <div>
+                      <div>Releases de Todas as Versões</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Ver histórico no GitHub</div>
+                    </div>
+                  </a>
+                </div>
+              )}
+            </div>
 
             <button 
               className="btn btn-secondary"

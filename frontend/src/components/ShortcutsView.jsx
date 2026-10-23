@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Tv, Plus, Edit2, Trash2, Check, X, ExternalLink, 
-  Layers, Sliders, Smartphone, Image as ImageIcon, Sparkles
+  Layers, Sliders, Smartphone, Image as ImageIcon, Sparkles,
+  Upload, Palette
 } from 'lucide-react';
 import BrandAppIcon from './BrandAppIcon';
 
@@ -24,12 +25,15 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingShortcut, setEditingShortcut] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingIcon, setUploadingIcon] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Form State
   const [formName, setFormName] = useState('');
   const [formPackage, setFormPackage] = useState('');
   const [formIconName, setFormIconName] = useState('Tv');
   const [formIconUrl, setFormIconUrl] = useState('');
+  const [formBgColor, setFormBgColor] = useState('');
   const [formOrder, setFormOrder] = useState(0);
   const [formIsHdmi, setFormIsHdmi] = useState(false);
   const [formIsSystem, setFormIsSystem] = useState(false);
@@ -40,6 +44,7 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
     setFormPackage('');
     setFormIconName('Tv');
     setFormIconUrl('');
+    setFormBgColor('');
     setFormOrder(shortcuts.length + 1);
     setFormIsHdmi(false);
     setFormIsSystem(false);
@@ -52,10 +57,48 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
     setFormPackage(sc.package_name || '');
     setFormIconName(sc.icon_name || 'Tv');
     setFormIconUrl(sc.icon_url || '');
+    setFormBgColor(sc.background_color || '');
     setFormOrder(sc.default_order ?? 0);
     setFormIsHdmi(Boolean(sc.is_hdmi));
     setFormIsSystem(Boolean(sc.is_system_app));
     setIsModalOpen(true);
+  };
+
+  const handleIconUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/png', 'image/svg+xml', 'image/webp', 'image/jpeg', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      alert('Por favor, selecione uma imagem PNG, SVG, WebP ou JPEG.');
+      return;
+    }
+
+    setUploadingIcon(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/media/upload-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Falha ao enviar imagem');
+      }
+
+      const data = await res.json();
+      if (data.url) {
+        setFormIconUrl(data.url);
+      }
+    } catch (err) {
+      alert(`Erro no upload: ${err.message}`);
+    } finally {
+      setUploadingIcon(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleApplyPreset = (preset) => {
@@ -83,6 +126,7 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
         package_name: formPackage.trim(),
         icon_name: formIconName.trim() || 'Tv',
         icon_url: formIconUrl.trim() || null,
+        background_color: formBgColor.trim() || null,
         default_order: parseInt(formOrder) || 0,
         is_hdmi: formIsHdmi,
         is_system_app: formIsSystem
@@ -135,7 +179,7 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
             <Layers size={24} color="#3b82f6" /> Gestão de Aplicativos & Atalhos da Dock
           </h2>
           <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: 6, marginBottom: 0, maxWidth: 750 }}>
-            Gerencie os aplicativos exibidos na TV: adicione novos apps, altere o texto dos botões, customize o ícone/imagem e defina a ordem de exibição na barra inferior.
+            Gerencie os aplicativos exibidos na TV: faça upload de logos PNG/SVG transparentes, customize as cores de fundo, edite os nomes e defina a ordem de exibição na barra inferior.
           </p>
         </div>
 
@@ -165,14 +209,17 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              {/* Icon Container */}
+              {/* Icon Container with Transparency & Custom Background */}
               <div style={{
                 width: 60, height: 60, borderRadius: 16,
-                background: sc.is_hdmi ? 'rgba(239, 68, 68, 0.2)' : 'rgba(30, 41, 59, 0.8)',
-                border: sc.is_hdmi ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                background: sc.is_hdmi 
+                  ? 'rgba(239, 68, 68, 0.2)' 
+                  : (sc.background_color || 'rgba(30, 41, 59, 0.8)'),
+                border: sc.is_hdmi ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                overflow: 'hidden'
               }}>
                 <BrandAppIcon 
                   name={sc.name} 
@@ -205,9 +252,20 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
                   Pacote: <code style={{ color: '#93c5fd', background: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: 4 }}>{sc.package_name}</code>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, fontSize: '0.72rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
                   <span>Ordem: <strong>#{sc.default_order}</strong></span>
-                  {sc.icon_url && <span style={{ color: '#34d399' }}>• Imagem Customizada</span>}
+                  {sc.icon_url && <span style={{ color: '#34d399' }}>• Imagem Custom</span>}
+                  {sc.background_color && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      • Cor Fundo: 
+                      <span style={{ 
+                        width: 12, height: 12, borderRadius: 3, 
+                        background: sc.background_color, 
+                        border: '1px solid rgba(255,255,255,0.4)',
+                        display: 'inline-block' 
+                      }} />
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -328,20 +386,146 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
                 </span>
               </div>
 
-              {/* URL de Imagem / Logo Customizado */}
+              {/* Upload e URL de Imagem / Logo Customizado */}
               <div>
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <ImageIcon size={14} color="#38bdf8" /> URL de Imagem / Logo Customizado (Opcional)
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                    <ImageIcon size={14} color="#38bdf8" /> Ícone / Logotipo do Aplicativo
+                  </label>
+                  {formIconUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setFormIconUrl('')}
+                      style={{ background: 'none', border: 'none', color: '#f87171', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}
+                    >
+                      Remover imagem
+                    </button>
+                  )}
+                </div>
+
+                {/* Hidden File Input */}
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  style={{ display: 'none' }} 
+                  accept="image/png,image/svg+xml,image/webp,image/jpeg,image/jpg"
+                  onChange={handleIconUpload}
+                />
+
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingIcon}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      background: 'rgba(59, 130, 246, 0.12)',
+                      borderColor: 'rgba(59, 130, 246, 0.35)',
+                      color: '#60a5fa',
+                      fontSize: '0.82rem',
+                      padding: '8px 14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Upload size={15} />
+                    {uploadingIcon ? 'Enviando imagem...' : 'Fazer Upload de Imagem (PNG, SVG, WebP)'}
+                  </button>
+                </div>
+
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="Ex: https://meuservidor.com/icones/meuapp.png ou /api/media/stream/12"
+                  placeholder="Ou cole a URL direta (ex: /api/media/image/logo.png)"
                   value={formIconUrl}
                   onChange={e => setFormIconUrl(e.target.value)}
+                  style={{ fontSize: '0.82rem' }}
                 />
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-                  Se informado, a TV carrega esta imagem personalizada em alta resolução na dock.
+                  Suporte total a transparência PNG/SVG (sem quadrado branco atrás).
+                </span>
+              </div>
+
+              {/* Cor de Fundo do Botão (Background Color) */}
+              <div>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Palette size={14} color="#a78bfa" /> Cor de Fundo do Botão no Dock
+                </label>
+
+                {/* Presets Rápidos */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {[
+                    { label: 'Transparente Escuro', value: 'rgba(0, 0, 0, 0.45)', color: 'rgba(0, 0, 0, 0.6)' },
+                    { label: 'Totalmente Transparente', value: 'transparent', color: 'rgba(255, 255, 255, 0.1)' },
+                    { label: 'Azul Fasano', value: '#1e3a8a', color: '#1e3a8a' },
+                    { label: 'Vermelho Netflix', value: '#E50914', color: '#E50914' },
+                    { label: 'Verde Spotify', value: '#1ED760', color: '#1ED760' },
+                    { label: 'Azul Disney/Prime', value: '#0284c7', color: '#0284c7' },
+                    { label: 'Dourado Hotel', value: '#d97706', color: '#d97706' },
+                    { label: 'Preto Puro', value: '#000000', color: '#000000' }
+                  ].map(preset => (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={() => setFormBgColor(preset.value)}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: '0.72rem',
+                        borderRadius: 6,
+                        border: formBgColor === preset.value ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.15)',
+                        background: preset.color,
+                        color: '#fff',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="color"
+                    value={formBgColor.startsWith('#') && formBgColor.length === 7 ? formBgColor : '#1e3a8a'}
+                    onChange={e => setFormBgColor(e.target.value)}
+                    style={{
+                      width: 42,
+                      height: 38,
+                      borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      background: 'none',
+                      cursor: 'pointer',
+                      padding: 2
+                    }}
+                    title="Seletor de cor visual"
+                  />
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Ex: #E50914, rgba(0,0,0,0.45) ou transparent"
+                    value={formBgColor}
+                    onChange={e => setFormBgColor(e.target.value)}
+                    style={{ flex: 1, fontFamily: 'monospace', fontSize: '0.82rem' }}
+                  />
+                  {formBgColor && (
+                    <button
+                      type="button"
+                      onClick={() => setFormBgColor('')}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer' }}
+                    >
+                      Padrão
+                    </button>
+                  )}
+                </div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  Selecione a cor de fundo desejada para preencher o botão quando a imagem tiver fundo transparente.
                 </span>
               </div>
 
@@ -372,31 +556,46 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
                 </div>
               </div>
 
-              {/* Preview do Ícone */}
+              {/* Preview do Ícone e Cor de Fundo */}
               <div style={{ 
                 background: 'rgba(0,0,0,0.3)', padding: 14, borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)',
                 display: 'flex', alignItems: 'center', gap: 16
               }}>
+                {/* Visual Checkered Backdrop to prove PNG transparency */}
                 <div style={{
-                  width: 54, height: 54, borderRadius: 14,
-                  background: 'rgba(30, 41, 59, 0.9)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  padding: 4,
+                  borderRadius: 16,
+                  backgroundImage: 'repeating-conic-gradient(#1e293b 0% 25%, #0f172a 0% 50%) 50% / 12px 12px',
+                  display: 'inline-block'
                 }}>
-                  <BrandAppIcon 
-                    name={formName} 
-                    packageName={formPackage} 
-                    iconUrl={formIconUrl} 
-                    isHdmi={formIsHdmi} 
-                    size={36} 
-                  />
+                  <div style={{
+                    width: 58, height: 58, borderRadius: 14,
+                    background: formIsHdmi 
+                      ? 'rgba(239, 68, 68, 0.4)' 
+                      : (formBgColor || 'rgba(0, 0, 0, 0.45)'),
+                    border: '1.5px solid rgba(255, 255, 255, 0.3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+                    overflow: 'hidden'
+                  }}>
+                    <BrandAppIcon 
+                      name={formName} 
+                      packageName={formPackage} 
+                      iconUrl={formIconUrl} 
+                      isHdmi={formIsHdmi} 
+                      size={38} 
+                    />
+                  </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff' }}>
-                    Pré-visualização do Ícone
+                  <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#fff' }}>
+                    Pré-visualização do Botão
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: 2 }}>
                     {formName || 'Nome do Aplicativo'}
+                  </div>
+                  <div style={{ fontSize: '0.70rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                    Fundo: <code style={{ color: '#93c5fd' }}>{formBgColor || 'rgba(0, 0, 0, 0.45) (Padrão)'}</code>
                   </div>
                 </div>
               </div>

@@ -3,7 +3,14 @@ name: Build Android TV Launcher APK
 on:
   push:
     branches: [ "main" ]
+    tags:
+      - 'v*'
   workflow_dispatch:
+    inputs:
+      custom_tag:
+        description: 'Tag de versão específica (opcional, ex: v1.0.8)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -39,36 +46,83 @@ jobs:
         run: |
           gradle assembleDebug --no-daemon --no-build-cache --stacktrace
 
+      - name: Extract App Version
+        id: get_version
+        run: |
+          VERSION=$(grep -o 'versionName = "[^"]*"' android-tv-app/app/build.gradle.kts | cut -d'"' -f2)
+          VCODE=$(grep -o 'versionCode = [0-9]*' android-tv-app/app/build.gradle.kts | awk '{print $3}')
+          if [ -z "$VERSION" ]; then VERSION="1.0.8"; fi
+          if [ -z "$VCODE" ]; then VCODE="9"; fi
+          
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          elif [ -n "${{ github.event.inputs.custom_tag }}" ]; then
+            TAG_NAME="${{ github.event.inputs.custom_tag }}"
+          else
+            TAG_NAME="v${VERSION}"
+          fi
+          
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "VCODE=$VCODE" >> $GITHUB_OUTPUT
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Extracted App Version: $VERSION (Code: $VCODE, Tag: $TAG_NAME)"
+
       - name: Verify and Prepare APK
         run: |
           mkdir -p build-output
-          find android-tv-app -name "*.apk"
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
           cp android-tv-app/app/build/outputs/apk/debug/app-debug.apk build-output/smarttv-launcher.apk
-          ls -lh build-output/smarttv-launcher.apk
+          cp android-tv-app/app/build/outputs/apk/debug/app-debug.apk build-output/fasano-smarttv-latest.apk
+          cp android-tv-app/app/build/outputs/apk/debug/app-debug.apk "build-output/fasano-smarttv-v${VERSION}.apk"
+          ls -lh build-output/
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: smarttv-launcher-apk
-          path: build-output/smarttv-launcher.apk
+          path: build-output/
           retention-days: 30
 
-      - name: Publish GitHub Release
-        continue-on-error: true
+      - name: Publish Versioned GitHub Release (${{ steps.get_version.outputs.TAG_NAME }})
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
         with:
-          tag_name: latest
+          tag_name: ${{ steps.get_version.outputs.TAG_NAME }}
           make_latest: true
-          name: "SmartTV Launcher APK (Mais Recente)"
+          name: "SmartTV Launcher ${{ steps.get_version.outputs.TAG_NAME }}"
           body: |
-            ### SmartTV Manager Launcher (Android TV / Google TV)
+            ### SmartTV Manager Launcher ${{ steps.get_version.outputs.TAG_NAME }}
+            - **Versão:** v${{ steps.get_version.outputs.VERSION }} (Build Code ${{ steps.get_version.outputs.VCODE }})
+            - **Disponibilidade na Raiz:** `smarttv-launcher.apk` (em `/opt/smarttv/` e download web)
             - **Compatibilidade:** Android 5.0 (API 21) até Android 14+ (API 34)
-            - **ExoPlayer:** Reprodução contínua de playlist de vídeos com cache local em disco
-            - **Atalhos:** Leitura de ícones e banners oficiais via PackageManager
+            - **ExoPlayer:** Reprodução contínua de playlist de vídeos com cache local em disco (Media3)
+            - **Gestão de Atalhos:** Upload de logos PNG/SVG transparentes, customização de cor de fundo e redimensionamento dinâmico
+            - **Relógio & Tempo:** Alternância entre apenas horário ou horário com data, previsão climática e cidade customizável
             - **HDMI SKY:** Troca automática para a entrada HDMI configurada
+            - **Limpeza no Checkout:** Limpeza de cache e dados de hóspedes via Opera PMS
           draft: false
           prerelease: false
-          files: build-output/smarttv-launcher.apk
+          files: |
+            build-output/smarttv-launcher.apk
+            build-output/fasano-smarttv-latest.apk
+            build-output/fasano-smarttv-v${{ steps.get_version.outputs.VERSION }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update 'latest' GitHub Release Tag
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "latest"
+          make_latest: false
+          name: "SmartTV Launcher (Última Versão)"
+          body: |
+            Release flutuante apontando sempre para a última versão estável compilada (atualmente **${{ steps.get_version.outputs.TAG_NAME }}**).
+          draft: false
+          prerelease: false
+          files: |
+            build-output/smarttv-launcher.apk
+            build-output/fasano-smarttv-latest.apk
+            build-output/fasano-smarttv-v${{ steps.get_version.outputs.VERSION }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

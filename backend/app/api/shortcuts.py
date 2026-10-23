@@ -96,6 +96,7 @@ async def create_shortcut(payload: AppShortcutBase, db: AsyncSession = Depends(g
         package_name=payload.package_name,
         icon_name=payload.icon_name,
         icon_url=payload.icon_url,
+        background_color=payload.background_color,
         is_system_app=payload.is_system_app,
         is_hdmi=payload.is_hdmi,
         default_order=payload.default_order
@@ -120,6 +121,8 @@ async def update_shortcut(shortcut_id: int, payload: AppShortcutUpdate, db: Asyn
         shortcut.icon_name = payload.icon_name.strip()
     if payload.icon_url is not None:
         shortcut.icon_url = payload.icon_url.strip() or None
+    if payload.background_color is not None:
+        shortcut.background_color = payload.background_color.strip() or None
     if payload.is_system_app is not None:
         shortcut.is_system_app = payload.is_system_app
     if payload.is_hdmi is not None:

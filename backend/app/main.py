@@ -301,6 +301,7 @@ async def lifespan(app: FastAPI):
         await conn.execute(text("ALTER TABLE smart_tvs ADD COLUMN IF NOT EXISTS pin_code VARCHAR(20);"))
         await conn.execute(text("ALTER TABLE smart_tvs ADD COLUMN IF NOT EXISTS group_id INTEGER;"))
         await conn.execute(text("ALTER TABLE app_shortcuts ADD COLUMN IF NOT EXISTS icon_url VARCHAR(500);"))
+        await conn.execute(text("ALTER TABLE app_shortcuts ADD COLUMN IF NOT EXISTS background_color VARCHAR(50);"))
     await seed_initial_data()
     # Inicia ouvinte em segundo plano FIAS (IFC8 192.168.162.18)
     fias_service.start()
@@ -347,6 +348,8 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
 
+from fastapi.responses import FileResponse
+
 @app.get("/")
 def root():
     return {
@@ -355,3 +358,18 @@ def root():
         "docs": "/docs",
         "api_version": "v1"
     }
+
+@app.get("/smarttv-launcher.apk")
+@app.get("/fasano-smarttv-latest.apk")
+def download_launcher_apk():
+    candidates = [
+        "/opt/smarttv/smarttv-launcher.apk",
+        "/opt/smarttv/frontend/dist/smarttv-launcher.apk",
+        "/smarttv-launcher.apk",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "smarttv-launcher.apk")
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return FileResponse(p, media_type="application/vnd.android.package-archive", filename="smarttv-launcher.apk")
+    return {"error": "APK não encontrado na raiz do sistema"}
+

@@ -11,7 +11,13 @@ export default function BrandAppIcon({ name, packageName, iconUrl, isHdmi, isFoc
       <img 
         src={iconUrl} 
         alt={name || 'App Icon'} 
-        style={{ width: size, height: size, objectFit: 'contain', borderRadius: 6 }} 
+        style={{ 
+          width: size, 
+          height: size, 
+          objectFit: 'contain', 
+          background: 'transparent',
+          display: 'block' 
+        }} 
         onError={(e) => { e.target.style.display = 'none'; }}
       />
     );

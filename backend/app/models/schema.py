@@ -74,6 +74,7 @@ class AppShortcut(Base):
     package_name = Column(String(255), nullable=False) # "com.netflix.ninja" or "action.hdmi"
     icon_name = Column(String(100), nullable=False) # Lucide icon name or image url
     icon_url = Column(String(500), nullable=True) # URL to custom uploaded logo/image
+    background_color = Column(String(50), nullable=True) # e.g. "#E50914" or "rgba(0,0,0,0.45)"
     is_system_app = Column(Boolean, default=False)
     is_hdmi = Column(Boolean, default=False)
     default_order = Column(Integer, default=0)

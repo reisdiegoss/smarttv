@@ -85,6 +85,7 @@ class AppShortcutBase(BaseModel):
     package_name: str
     icon_name: str
     icon_url: Optional[str] = None
+    background_color: Optional[str] = None
     is_system_app: bool = False
     is_hdmi: bool = False
     default_order: int = 0
@@ -94,6 +95,7 @@ class AppShortcutUpdate(BaseModel):
     package_name: Optional[str] = None
     icon_name: Optional[str] = None
     icon_url: Optional[str] = None
+    background_color: Optional[str] = None
     is_system_app: Optional[bool] = None
     is_hdmi: Optional[bool] = None
     default_order: Optional[int] = None

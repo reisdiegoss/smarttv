@@ -449,9 +449,11 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                               ? (isFocused 
                                   ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(185, 28, 28, 0.95) 100%)' 
                                   : 'rgba(239, 68, 68, 0.25)')
-                              : (isFocused 
-                                  ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%)' 
-                                  : 'rgba(0, 0, 0, 0.45)'),
+                              : (item.background_color
+                                  ? item.background_color
+                                  : (isFocused 
+                                      ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%)' 
+                                      : 'rgba(0, 0, 0, 0.45)')),
                             backdropFilter: 'blur(12px)',
                             border: isFocused 
                               ? (isSky ? '2.5px solid #ffffff' : '2.5px solid #3b82f6')
@@ -617,7 +619,9 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                               padding: '10px 16px', borderRadius: 14,
                               background: isSky 
                                 ? (isFocused ? '#ef4444' : 'rgba(239, 68, 68, 0.22)')
-                                : (isFocused ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'rgba(255, 255, 255, 0.06)'),
+                                : (item.background_color 
+                                    ? item.background_color 
+                                    : (isFocused ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'rgba(255, 255, 255, 0.06)')),
                               border: isFocused ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
                               boxShadow: isFocused ? '0 0 20px rgba(59, 130, 246, 0.5)' : 'none',
                               color: '#fff', cursor: 'pointer', textAlign: 'left',
@@ -626,7 +630,7 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                             }}
                           >
                             <div style={{ width: 30, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <BrandAppIcon name={item.name} packageName={item.package_name} isHdmi={isSky} isFocused={isFocused} />
+                              <BrandAppIcon name={item.name} packageName={item.package_name} iconUrl={item.icon_url} isHdmi={isSky} isFocused={isFocused} />
                             </div>
                             <span style={{ fontSize: '0.9rem', fontWeight: isFocused ? 700 : 600, flex: 1 }}>
                               {isSky ? hdmiLabel : item.name}
@@ -669,7 +673,9 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                           style={{
                             background: isSky
                               ? (isFocused ? '#ef4444' : 'rgba(239, 68, 68, 0.25)')
-                              : (isFocused ? '#2563eb' : 'rgba(255,255,255,0.08)'),
+                              : (item.background_color 
+                                  ? item.background_color 
+                                  : (isFocused ? '#2563eb' : 'rgba(255,255,255,0.08)')),
                             border: isFocused ? '2px solid #fff' : '1px solid transparent',
                             boxShadow: isFocused ? '0 0 20px rgba(59, 130, 246, 0.6)' : 'none',
                             color: '#fff', borderRadius: 12, padding: '8px 14px',
@@ -680,7 +686,7 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                           }}
                         >
                           <div style={{ width: 22, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <BrandAppIcon name={item.name} packageName={item.package_name} isHdmi={isSky} isFocused={isFocused} />
+                            <BrandAppIcon name={item.name} packageName={item.package_name} iconUrl={item.icon_url} isHdmi={isSky} isFocused={isFocused} size={22} />
                           </div>
                           <span>{item.is_hdmi ? hdmiLabel : item.name}</span>
                         </button>

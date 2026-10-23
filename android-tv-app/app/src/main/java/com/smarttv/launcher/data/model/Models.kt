@@ -27,6 +27,7 @@ data class ShortcutItem(
     @SerializedName("package_name") val packageName: String,
     @SerializedName("icon_name") val iconName: String,
     @SerializedName("icon_url") val iconUrl: String? = null,
+    @SerializedName("background_color") val backgroundColor: String? = null,
     @SerializedName("is_hdmi") val isHdmi: Boolean,
     @SerializedName("is_system_app") val isSystemApp: Boolean
 )

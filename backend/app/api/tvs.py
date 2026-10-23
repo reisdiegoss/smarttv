@@ -800,6 +800,7 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
                     "package_name": s.package_name,
                     "icon_name": s.icon_name,
                     "icon_url": s.icon_url,
+                    "background_color": s.background_color,
                     "is_hdmi": s.is_hdmi,
                     "is_system_app": s.is_system_app
                 })
@@ -814,6 +815,7 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
                 "package_name": s.package_name,
                 "icon_name": s.icon_name,
                 "icon_url": s.icon_url,
+                "background_color": s.background_color,
                 "is_hdmi": s.is_hdmi,
                 "is_system_app": s.is_system_app
             })
