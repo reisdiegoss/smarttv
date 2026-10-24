@@ -478,8 +478,8 @@ export default function App() {
             {/* Split Button de Download Direto + Opções */}
             <div ref={apkMenuRef} style={{ position: 'relative', display: 'inline-flex' }}>
               <a
-                href="/fasano-smarttv-v1.1.0.apk"
-                download="fasano-smarttv-v1.1.0.apk"
+                href="/fasano-smarttv-v1.1.1.apk"
+                download="fasano-smarttv-v1.1.1.apk"
                 className="btn btn-secondary"
                 style={{
                   display: 'inline-flex',
@@ -494,9 +494,9 @@ export default function App() {
                   borderTopRightRadius: 0,
                   borderBottomRightRadius: 0
                 }}
-                title="Download direto do APK v1.1.0 (fasano-smarttv-v1.1.0.apk)"
+                title="Download direto do APK v1.1.1 (fasano-smarttv-v1.1.1.apk)"
               >
-                <Download size={16} /> Baixar APK v1.1.0
+                <Download size={16} /> Baixar APK v1.1.1
               </a>
 
               <button
@@ -542,8 +542,8 @@ export default function App() {
                   </div>
 
                   <a
-                    href="/fasano-smarttv-v1.1.0.apk"
-                    download="fasano-smarttv-v1.1.0.apk"
+                    href="/fasano-smarttv-v1.1.1.apk"
+                    download="fasano-smarttv-v1.1.1.apk"
                     onClick={() => setIsApkMenuOpen(false)}
                     style={{
                       display: 'flex',
@@ -560,8 +560,8 @@ export default function App() {
                   >
                     <Download size={16} color="#38bdf8" />
                     <div>
-                      <div>Baixar Versão Oficial (v1.1.0)</div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>fasano-smarttv-v1.1.0.apk</div>
+                      <div>Baixar Versão Oficial (v1.1.1)</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>fasano-smarttv-v1.1.1.apk</div>
                     </div>
                   </a>
 

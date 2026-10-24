@@ -10,9 +10,9 @@ Toda versão do aplicativo é regida por duas variáveis obrigatórias em `andro
 
 | Variável | Tipo | Descrição | Exemplo |
 | :--- | :--- | :--- | :--- |
-| `versionCode` | Inteiro | Número sequencial absoluto que **deve ser incrementado a cada build**. O Android rejeita atualizações onde o `versionCode` seja menor ou igual ao já instalado na TV. | `11` |
-| `versionName` | String | Versão semântica visível ao usuário e administradores no formato `MAJOR.MINOR.PATCH`. | `"1.1.0"` |
-| Git Tag | Tag | Identificador Git correspondente precedido pela letra `v`. | `v1.1.0` |
+| `versionCode` | Inteiro | Número sequencial absoluto que **deve ser incrementado a cada build**. O Android rejeita atualizações onde o `versionCode` seja menor ou igual ao já instalado na TV. | `12` |
+| `versionName` | String | Versão semântica visível ao usuário e administradores no formato `MAJOR.MINOR.PATCH`. | `"1.1.1"` |
+| Git Tag | Tag | Identificador Git correspondente precedido pela letra `v`. | `v1.1.1` |
 
 ### Arquivos Gerados a Cada Build (Trilogia de APKs)
 Para cada compilação, exatamente 3 arquivos são gerados e disponibilizados na raiz do sistema e nos repositórios:
@@ -148,6 +148,17 @@ adb shell pm enable com.google.android.apps.tv.launcherx
 ---
 
 ## 5. Histórico de Versões e Changelog Recente
+
+### v1.1.1 (24/10/2026)
+- **Correção da Tela Preta e Retomada de Áudio do ExoPlayer**:
+  - Migração de `surface_view` para `texture_view` no layout principal (`activity_main.xml`), eliminando a destruição de hardware surface ao abrir aplicativos de vídeo externos (YouTube, Netflix).
+  - Implementação de `AudioAttributes` com foco de áudio automático (`handleAudioFocus = true`), garantindo que o áudio do vídeo corporativo seja readquirido imediatamente ao voltar à tela inicial.
+  - Implementação do método `resumeVideoPlayback()` com listener de erro (`Player.Listener`) e auto-recuperação automática em caso de liberação de codecs de hardware.
+- **Automação e Assistente de Limpeza de Dados dos Apps**:
+  - Remoção de `com.android.tv.settings` da lista de bloqueio de acessibilidade, permitindo a abertura das telas de armazenamento do sistema.
+  - Adição de `AdminReceiver` e política de dispositivo (`device_admin.xml`) para suporte a Device Owner (`dpm set-device-owner com.smarttv.launcher/.receiver.AdminReceiver`).
+  - Implementação de limpeza assistida no `LauncherAccessibilityService`: navega e clica automaticamente em "Limpar dados" / "Confirmar" na tela de configurações de cada app configurado.
+  - Novo diálogo com opções de "Limpeza Automática Assistida" ou "Abrir Apps Individualmente" para os aplicativos que exigem autorização.
 
 ### v1.1.0 (24/10/2026)
 - **Código Secreto na Tecla HOME**: Acesso ao menu de Administrador (PIN) agora exige **3 toques rápidos consecutivos na tecla HOME** (janela de tempo inferior a 1.5s). Toques únicos ou esporádicos mantêm o hóspede na interface sem pedir senha.

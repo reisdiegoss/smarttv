@@ -10,14 +10,22 @@ import android.provider.Settings
 import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebStorage
+import com.smarttv.launcher.service.LauncherAccessibilityService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+data class AppCleanupReport(
+    val silentSuccessPackages: List<String>,
+    val remainingPackages: List<String>,
+    val isDeviceOwner: Boolean,
+    val isRoot: Boolean
+)
 
 object AppCleanupManager {
     private const val TAG = "AppCleanupManager"
 
     // Principais pacotes de streaming de hotéis e entretenimento que os hóspedes utilizam
-    private val STREAMING_PACKAGES = listOf(
+    val STREAMING_PACKAGES = listOf(
         "com.netflix.ninja",                     // Netflix Android TV
         "com.google.android.youtube.tv",          // YouTube TV
         "com.amazon.amazonvideo.livingroom",     // Amazon Prime Video
@@ -30,93 +38,101 @@ object AppCleanupManager {
     )
 
     /**
-     * Limpa o cache, dados de sessão e cookies de login de todos os apps de terceiros
-     * configurados ou conhecidos, protegendo a privacidade dos hóspedes pós-checkout.
-     * Tenta múltiplas camadas de execução (Root, Device Owner, PM Shell).
+     * Tenta limpar o cache e dados de sessão de forma silenciosa via Root ou Device Owner.
+     * Retorna um relatório claro com o que conseguiu limpar e o que requer assistência.
      */
-    suspend fun clearGuestAppData(context: Context, extraPackages: List<String> = emptyList()): List<String> = withContext(Dispatchers.IO) {
-        Log.i(TAG, "Iniciando limpeza segura de dados de hóspede pós-checkout...")
+    suspend fun clearGuestAppData(context: Context, extraPackages: List<String> = emptyList()): AppCleanupReport = withContext(Dispatchers.IO) {
+        Log.i(TAG, "Iniciando verificação e limpeza silenciosa de dados...")
 
         val packagesToClean = (STREAMING_PACKAGES + extraPackages)
             .filter { it.isNotBlank() && !it.startsWith("action.") && it != context.packageName }
             .distinct()
 
-        val cleanedApps = mutableListOf<String>()
+        val silentSuccess = mutableListOf<String>()
+        val remaining = mutableListOf<String>()
 
-        // 1. Limpeza de Cookies e Dados WebView (usado por apps híbridos e navegadores)
+        // 1. Limpeza universal de Cookies e WebView
         try {
             withContext(Dispatchers.Main) {
                 CookieManager.getInstance().removeAllCookies(null)
                 CookieManager.getInstance().flush()
                 WebStorage.getInstance().deleteAllData()
-                Log.d(TAG, "Cookies e WebStorage limpos com sucesso.")
+                Log.d(TAG, "Cookies e WebStorage limpos.")
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Falha ao limpar CookieManager/WebStorage: ${e.message}")
+            Log.w(TAG, "Falha ao limpar CookieManager: ${e.message}")
         }
 
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+        val isDeviceOwner = dpm != null && dpm.isDeviceOwnerApp(context.packageName)
+        var hasRoot = false
 
         for (pkg in packagesToClean) {
-            var success = false
+            var cleaned = false
 
             // Tentativa 1: Root (su -c pm clear)
             try {
                 val suProcess = Runtime.getRuntime().exec(arrayOf("su", "-c", "pm clear $pkg"))
                 val code = suProcess.waitFor()
                 if (code == 0) {
-                    success = true
-                    Log.i(TAG, "pm clear via root executado com sucesso para $pkg")
+                    cleaned = true
+                    hasRoot = true
+                    Log.i(TAG, "Root: pm clear bem-sucedido para $pkg")
                 }
             } catch (ignored: Exception) {}
 
-            // Tentativa 2: DevicePolicyManager se for Device Owner
-            if (!success && dpm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // Tentativa 2: DevicePolicyManager (Device Owner oficial do Google)
+            if (!cleaned && isDeviceOwner && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 try {
-                    if (dpm.isDeviceOwnerApp(context.packageName)) {
-                        dpm.clearApplicationUserData(
-                            ComponentName(context, "com.smarttv.launcher.receiver.AdminReceiver"),
-                            pkg,
-                            context.mainExecutor
-                        ) { _, s ->
-                            Log.i(TAG, "clearApplicationUserData via DPM para $pkg: $s")
-                        }
-                        success = true
+                    dpm?.clearApplicationUserData(
+                        ComponentName(context, "com.smarttv.launcher.receiver.AdminReceiver"),
+                        pkg,
+                        context.mainExecutor
+                    ) { _, success ->
+                        Log.i(TAG, "DPM clearApplicationUserData para $pkg: $success")
                     }
-                } catch (ignored: Exception) {}
+                    cleaned = true
+                } catch (e: Exception) {
+                    Log.w(TAG, "Erro no DPM para $pkg: ${e.message}")
+                }
             }
 
-            // Tentativa 3: Shell padrão (pm clear)
-            if (!success) {
-                try {
-                    val process = Runtime.getRuntime().exec(arrayOf("pm", "clear", pkg))
-                    val exitCode = process.waitFor()
-                    if (exitCode == 0) {
-                        success = true
-                    }
-                } catch (ignored: Exception) {}
+            if (cleaned) {
+                silentSuccess.add(pkg)
+            } else {
+                remaining.add(pkg)
             }
 
-            // Força encerramento do processo em background
+            // Força fechamento do processo
             try {
                 Runtime.getRuntime().exec(arrayOf("am", "force-stop", pkg)).waitFor()
             } catch (ignored: Exception) {}
-
-            cleanedApps.add(pkg)
         }
 
-        Log.i(TAG, "Limpeza de dados de hóspede finalizada para ${cleanedApps.size} pacotes.")
-        cleanedApps
+        Log.i(TAG, "Limpeza silenciosa concluída: ${silentSuccess.size} limpos, ${remaining.size} pendentes.")
+        AppCleanupReport(
+            silentSuccessPackages = silentSuccess,
+            remainingPackages = remaining,
+            isDeviceOwner = isDeviceOwner,
+            isRoot = hasRoot
+        )
     }
 
     /**
-     * Abre a tela de Gerenciamento de Armazenamento / Limpeza de Dados do app específico
+     * Inicia a sequência de limpeza assistida via AccessibilityService
+     */
+    fun startAssistedClean(packages: List<String>, onComplete: () -> Unit) {
+        LauncherAccessibilityService.startAutoCleanQueue(packages, onComplete)
+    }
+
+    /**
+     * Abre a tela de Gerenciamento / Limpeza de Dados de um aplicativo específico
      */
     fun openAppDetailsSettings(context: Context, packageName: String) {
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.parse("package:$packageName")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             context.startActivity(intent)
         } catch (e: Exception) {

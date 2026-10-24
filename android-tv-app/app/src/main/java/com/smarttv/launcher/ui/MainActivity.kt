@@ -22,7 +22,10 @@ import android.view.WindowManager
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -35,6 +38,7 @@ import com.smarttv.launcher.SmartTVApp
 import com.smarttv.launcher.data.api.TVApiService
 import com.smarttv.launcher.data.model.*
 import com.smarttv.launcher.manager.AppCleanupManager
+import com.smarttv.launcher.manager.AppCleanupReport
 import com.smarttv.launcher.manager.AppLauncherManager
 import com.smarttv.launcher.manager.HdmiInputManager
 import com.smarttv.launcher.player.VideoCacheManager
@@ -241,29 +245,95 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initExoPlayer() {
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
+
+        val errorListener = object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                Log.e(TAG, "ExoPlayer erro detectado: ${error.errorCodeName} - ${error.message}", error)
+                handler.postDelayed({
+                    if (layoutPairing.visibility != View.VISIBLE) {
+                        try {
+                            exoPlayer?.prepare()
+                            exoPlayer?.play()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Falha na auto-recuperacao rapida do ExoPlayer, recarregando playlist", e)
+                            currentLoadedMediaUrls = emptyList()
+                            currentConfig?.let { setupPlaylist(it) }
+                        }
+                    }
+                }, 1000)
+            }
+        }
+
         try {
             val cacheDataSourceFactory = VideoCacheManager.buildCacheDataSourceFactory(this)
             val mediaSourceFactory = DefaultMediaSourceFactory(cacheDataSourceFactory)
 
             exoPlayer = ExoPlayer.Builder(this)
                 .setMediaSourceFactory(mediaSourceFactory)
+                .setAudioAttributes(audioAttributes, true)
                 .build()
                 .apply {
                     repeatMode = Player.REPEAT_MODE_ALL
                     playWhenReady = true
+                    addListener(errorListener)
                 }
         } catch (e: Exception) {
             Log.e(TAG, "Fallback simples para ExoPlayer sem cache", e)
             exoPlayer = ExoPlayer.Builder(this)
+                .setAudioAttributes(audioAttributes, true)
                 .build()
                 .apply {
                     repeatMode = Player.REPEAT_MODE_ALL
                     playWhenReady = true
+                    addListener(errorListener)
                 }
         }
 
         playerView.player = exoPlayer
         playerView.useController = false
+    }
+
+    /**
+     * Retoma a reprodução do vídeo corporativo de forma segura e resiliente após retorno
+     * de aplicativos de streaming (YouTube, Netflix) ou HDMI.
+     */
+    private fun resumeVideoPlayback() {
+        if (layoutPairing.visibility == View.VISIBLE) return
+        val playlist = currentConfig?.playlist
+        if (playlist == null || playlist.items.isEmpty()) return
+
+        playerView.visibility = View.VISIBLE
+        try {
+            playerView.onResume()
+        } catch (e: Exception) {
+            Log.w(TAG, "Erro no playerView.onResume()", e)
+        }
+
+        if (exoPlayer == null) {
+            Log.i(TAG, "ExoPlayer nulo no retorno, recriando...")
+            initExoPlayer()
+            currentLoadedMediaUrls = emptyList()
+            currentConfig?.let { setupPlaylist(it) }
+            return
+        }
+
+        playerView.player = exoPlayer
+
+        val playbackState = exoPlayer?.playbackState
+        val hasError = exoPlayer?.playerError != null
+
+        if (hasError || playbackState == Player.STATE_IDLE || exoPlayer?.mediaItemCount == 0) {
+            Log.i(TAG, "ExoPlayer em STATE_IDLE ou com erro. Recarregando itens da playlist...")
+            currentLoadedMediaUrls = emptyList()
+            currentConfig?.let { setupPlaylist(it) }
+        } else {
+            exoPlayer?.prepare()
+            exoPlayer?.play()
+        }
     }
 
     /**
@@ -300,7 +370,7 @@ class MainActivity : AppCompatActivity() {
     private fun showLauncherScreen() {
         stopPairPolling()
         layoutPairing.visibility = View.GONE
-        exoPlayer?.play()
+        resumeVideoPlayback()
 
         currentConfig?.let {
             applyLayout(it)
@@ -552,14 +622,38 @@ class MainActivity : AppCompatActivity() {
 
         dialogView.findViewById<Button>(R.id.btnActionCleanApps)?.setOnClickListener {
             dialog.dismiss()
-            Toast.makeText(this, "Iniciando limpeza de cache e dados dos apps...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Verificando dados e sessões de aplicativos...", Toast.LENGTH_SHORT).show()
             lifecycleScope.launch(Dispatchers.IO) {
                 val appPackages = currentConfig?.shortcuts?.map { it.packageName } ?: emptyList()
-                AppCleanupManager.clearGuestAppData(this@MainActivity, appPackages)
+                val report = AppCleanupManager.clearGuestAppData(this@MainActivity, appPackages)
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "🧹 Dados e cache de apps limpos com sucesso!", Toast.LENGTH_LONG).show()
-                    if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
-                        exoPlayer?.play()
+                    if (report.remainingPackages.isEmpty()) {
+                        Toast.makeText(this@MainActivity, "🧹 Todos os aplicativos foram limpos com sucesso!", Toast.LENGTH_LONG).show()
+                        resumeVideoPlayback()
+                    } else {
+                        val remainingNames = report.remainingPackages.map { pkg ->
+                            currentConfig?.shortcuts?.firstOrNull { it.packageName == pkg }?.name ?: pkg
+                        }.joinToString(", ")
+
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("Limpeza de Dados e Contas")
+                            .setMessage("Aplicativos a limpar: $remainingNames.\n\nDeseja iniciar a limpeza automática assistida agora?")
+                            .setPositiveButton("Sim, Limpar Automaticamente") { _, _ ->
+                                Toast.makeText(this@MainActivity, "Iniciando limpeza assistida nos apps...", Toast.LENGTH_SHORT).show()
+                                AppCleanupManager.startAssistedClean(report.remainingPackages) {
+                                    runOnUiThread {
+                                        Toast.makeText(this@MainActivity, "🧹 Limpeza assistida finalizada!", Toast.LENGTH_LONG).show()
+                                        resumeVideoPlayback()
+                                    }
+                                }
+                            }
+                            .setNeutralButton("Abrir App Individual") { _, _ ->
+                                showManualAppCleanSelector(report.remainingPackages)
+                            }
+                            .setNegativeButton("Cancelar") { _, _ ->
+                                resumeVideoPlayback()
+                            }
+                            .show()
                     }
                 }
             }
@@ -567,18 +661,32 @@ class MainActivity : AppCompatActivity() {
 
         dialogView.findViewById<Button>(R.id.btnActionDismiss).setOnClickListener {
             dialog.dismiss()
-            if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
-                exoPlayer?.play()
-            }
+            resumeVideoPlayback()
         }
 
         dialog.setOnDismissListener {
-            if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
-                exoPlayer?.play()
-            }
+            resumeVideoPlayback()
         }
 
         dialog.show()
+    }
+
+    private fun showManualAppCleanSelector(packages: List<String>) {
+        val items = packages.map { pkg ->
+            val appName = currentConfig?.shortcuts?.firstOrNull { it.packageName == pkg }?.name ?: pkg
+            "Abrir tela de dados: $appName"
+        }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("Limpeza de Dados de Aplicativos")
+            .setItems(items) { _, which ->
+                val selectedPkg = packages[which]
+                AppCleanupManager.openAppDetailsSettings(this, selectedPkg)
+            }
+            .setNegativeButton("Voltar") { _, _ ->
+                resumeVideoPlayback()
+            }
+            .show()
     }
 
     /**
@@ -1831,13 +1939,16 @@ class MainActivity : AppCompatActivity() {
         if (hasLaunchedExternalApp) {
             hasLaunchedExternalApp = false
         }
-        if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
-            exoPlayer?.play()
-        }
+        resumeVideoPlayback()
     }
 
     override fun onPause() {
         super.onPause()
+        try {
+            playerView.onPause()
+        } catch (e: Exception) {
+            Log.w(TAG, "Aviso no playerView.onPause()", e)
+        }
         exoPlayer?.pause()
     }
 
@@ -1849,9 +1960,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         com.smarttv.launcher.service.LauncherAccessibilityService.isExitingAuthorized = false
-        if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
-            exoPlayer?.play()
-        }
+        resumeVideoPlayback()
         if (hasLaunchedExternalApp) {
             handler.postDelayed({ hasLaunchedExternalApp = false }, 1000)
         }
