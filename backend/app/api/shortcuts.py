@@ -1,9 +1,10 @@
 from typing import List
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from app.core.database import get_db
-from app.models.schema import AppShortcut
+from app.models.schema import AppShortcut, SmartTV, TVGroup
 from app.models.dto import AppShortcutOut, AppShortcutBase, AppShortcutUpdate
 
 router = APIRouter(prefix="/shortcuts", tags=["Shortcuts"])
@@ -102,6 +103,23 @@ async def create_shortcut(payload: AppShortcutBase, db: AsyncSession = Depends(g
         default_order=payload.default_order
     )
     db.add(shortcut)
+    await db.flush()
+
+    now = datetime.utcnow()
+    await db.execute(update(SmartTV).values(updated_at=now))
+    await db.execute(update(TVGroup).values(updated_at=now))
+
+    # Se uma TV ou Grupo tinha selected_shortcuts, adiciona o novo atalho
+    tvs_res = await db.execute(select(SmartTV).where(SmartTV.selected_shortcuts.isnot(None)))
+    for t in tvs_res.scalars().all():
+        if t.selected_shortcuts and shortcut.id not in t.selected_shortcuts:
+            t.selected_shortcuts = list(t.selected_shortcuts) + [shortcut.id]
+
+    grps_res = await db.execute(select(TVGroup).where(TVGroup.selected_shortcuts.isnot(None)))
+    for g in grps_res.scalars().all():
+        if g.selected_shortcuts and shortcut.id not in g.selected_shortcuts:
+            g.selected_shortcuts = list(g.selected_shortcuts) + [shortcut.id]
+
     await db.commit()
     await db.refresh(shortcut)
     return shortcut
@@ -130,6 +148,11 @@ async def update_shortcut(shortcut_id: int, payload: AppShortcutUpdate, db: Asyn
     if payload.default_order is not None:
         shortcut.default_order = payload.default_order
     
+    # Atualiza timestamp para notificar TVs via ping
+    now = datetime.utcnow()
+    await db.execute(update(SmartTV).values(updated_at=now))
+    await db.execute(update(TVGroup).values(updated_at=now))
+
     await db.commit()
     await db.refresh(shortcut)
     return shortcut
@@ -141,5 +164,22 @@ async def delete_shortcut(shortcut_id: int, db: AsyncSession = Depends(get_db)):
     if not shortcut:
         raise HTTPException(status_code=404, detail="Atalho não encontrado")
     await db.delete(shortcut)
+
+    now = datetime.utcnow()
+    await db.execute(update(SmartTV).values(updated_at=now))
+    await db.execute(update(TVGroup).values(updated_at=now))
+
+    # Remove dos selected_shortcuts
+    tvs_res = await db.execute(select(SmartTV).where(SmartTV.selected_shortcuts.isnot(None)))
+    for t in tvs_res.scalars().all():
+        if t.selected_shortcuts and shortcut_id in t.selected_shortcuts:
+            t.selected_shortcuts = [x for x in t.selected_shortcuts if x != shortcut_id]
+
+    grps_res = await db.execute(select(TVGroup).where(TVGroup.selected_shortcuts.isnot(None)))
+    for g in grps_res.scalars().all():
+        if g.selected_shortcuts and shortcut_id in g.selected_shortcuts:
+            g.selected_shortcuts = [x for x in g.selected_shortcuts if x != shortcut_id]
+
     await db.commit()
     return {"message": "Atalho removido com sucesso"}
+

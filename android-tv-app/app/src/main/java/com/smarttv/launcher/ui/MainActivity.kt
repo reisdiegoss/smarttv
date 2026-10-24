@@ -131,6 +131,20 @@ class MainActivity : AppCompatActivity() {
     private var pairPollRunnable: Runnable? = null
     private var currentLoadedMediaUrls: List<String> = emptyList()
     private var pendingCleanupReport = false
+    private var hasLaunchedExternalApp = false
+    private var hasRequestedDefaultLauncherOnce = false
+
+    private fun isDefaultLauncher(): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+            }
+            val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            resolveInfo?.activityInfo?.packageName == packageName
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1051,6 +1065,16 @@ class MainActivity : AppCompatActivity() {
     private fun applyConfig(config: TVConfigResponse) {
         this.currentConfig = config
 
+        if (SmartTVApp.instance.isPaired() && !hasRequestedDefaultLauncherOnce && !isDefaultLauncher()) {
+            hasRequestedDefaultLauncherOnce = true
+            handler.postDelayed({
+                if (!isFinishing && !isDefaultLauncher()) {
+                    Toast.makeText(this, "Para bloquear a saída pelo botão Home, defina o Fasano SMARTTV como padrão ('Sempre')", Toast.LENGTH_LONG).show()
+                    requestSetDefaultLauncher()
+                }
+            }, 3500)
+        }
+
         // 1. Atualiza textos e Wi-Fi
         val custom = config.customSettings ?: emptyMap()
         val guestName = (custom["guest_name"] as? String)?.trim() ?: ""
@@ -1474,6 +1498,7 @@ class MainActivity : AppCompatActivity() {
 
             btnSky.setOnClickListener {
                 exoPlayer?.pause()
+                hasLaunchedExternalApp = true
                 HdmiInputManager.switchToHdmiInput(this, config.hdmi.inputId)
             }
             btnSky.isFocusable = true
@@ -1527,6 +1552,7 @@ class MainActivity : AppCompatActivity() {
 
             btnApp.setOnClickListener {
                 exoPlayer?.pause()
+                hasLaunchedExternalApp = true
                 AppLauncherManager.launchApp(this, sc.packageName)
             }
             btnApp.isFocusable = true
@@ -1578,6 +1604,7 @@ class MainActivity : AppCompatActivity() {
 
             btnSky.setOnClickListener {
                 exoPlayer?.pause()
+                hasLaunchedExternalApp = true
                 HdmiInputManager.switchToHdmiInput(this, config.hdmi.inputId)
             }
             btnSky.isFocusable = true
@@ -1625,6 +1652,7 @@ class MainActivity : AppCompatActivity() {
 
             btnApp.setOnClickListener {
                 exoPlayer?.pause()
+                hasLaunchedExternalApp = true
                 AppLauncherManager.launchApp(this, sc.packageName)
             }
             btnApp.isFocusable = true
@@ -1672,6 +1700,23 @@ class MainActivity : AppCompatActivity() {
             isDockVisible = true
         }
         resetAutoHideTimer()
+
+        // Intercepta botão HOME (3) ou APP_SWITCH (187) no controle da TV
+        if (event.keyCode == KeyEvent.KEYCODE_HOME || event.keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
+            if (event.action == KeyEvent.ACTION_UP) {
+                if (hasLaunchedExternalApp) {
+                    hasLaunchedExternalApp = false
+                } else {
+                    if (SmartTVApp.instance.isPaired() && layoutPairing.visibility != View.VISIBLE) {
+                        promptAdminPinDialog()
+                    } else if (!SmartTVApp.instance.isPaired()) {
+                        togglePairingOverlay()
+                    }
+                }
+            }
+            return true
+        }
+
         return super.dispatchKeyEvent(event)
     }
 
@@ -1690,11 +1735,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Teclas MENU, SETTINGS, BACK / RETURN ou ESCAPE abrem o menu secreto de PIN do administrador
+        // Teclas MENU, SETTINGS, BACK / RETURN, ESCAPE, HOME ou APP_SWITCH abrem o menu de PIN do administrador
         if (keyCode == KeyEvent.KEYCODE_MENU || 
             keyCode == KeyEvent.KEYCODE_SETTINGS || 
             keyCode == KeyEvent.KEYCODE_BACK || 
-            keyCode == KeyEvent.KEYCODE_ESCAPE) {
+            keyCode == KeyEvent.KEYCODE_ESCAPE ||
+            keyCode == KeyEvent.KEYCODE_HOME ||
+            keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
             if (layoutPairing.visibility == View.VISIBLE) {
                 if (SmartTVApp.instance.isPaired()) {
                     showLauncherScreen()
@@ -1711,6 +1758,27 @@ class MainActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+
+        val isHomeIntent = intent?.action == Intent.ACTION_MAIN && 
+            (intent.hasCategory(Intent.CATEGORY_HOME) || intent.hasCategory(Intent.CATEGORY_DEFAULT))
+
+        if (isHomeIntent) {
+            if (hasLaunchedExternalApp) {
+                // Usuário retornou de um aplicativo externo (Netflix, YouTube, HDMI)
+                hasLaunchedExternalApp = false
+            } else {
+                // Usuário já estava na tela da TV Fasano e pressionou o botão HOME no controle:
+                // Não sai do app. Exibe a solicitação de PIN de administrador para acessar configurações e sair por dentro delas.
+                if (SmartTVApp.instance.isPaired() && layoutPairing.visibility != View.VISIBLE) {
+                    promptAdminPinDialog()
+                }
+            }
+        }
+    }
+
     override fun onPause() {
         super.onPause()
         exoPlayer?.pause()
@@ -1725,6 +1793,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
             exoPlayer?.play()
+        }
+        if (hasLaunchedExternalApp) {
+            handler.postDelayed({ hasLaunchedExternalApp = false }, 1000)
         }
     }
 
