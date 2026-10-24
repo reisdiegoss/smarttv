@@ -317,41 +317,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Define este APK como o Launcher (Home) padrão do sistema Android TV
-     * Utiliza o componente FakeHomeActivity para invalidar o cache de Home do sistema e forçar
-     * o diálogo nativo do Android TV ("Usar Fasano SMARTTV como tela inicial: [Desta vez] [Sempre]").
+     * Aciona as configurações de Acessibilidade do Android TV para ativar o LauncherAccessibilityService
+     * Esse método blinda a tecla Home contra o Google TV sem derrubar o app.
      */
     private fun requestSetDefaultLauncher() {
         try {
-            val pm = packageManager
-            val fakeComponent = ComponentName(this, FakeHomeActivity::class.java)
-
-            // 1. Habilita temporariamente a FakeHomeActivity
-            pm.setComponentEnabledSetting(
-                fakeComponent,
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                PackageManager.DONT_KILL_APP
-            )
-
-            // 2. Dispara o Intent de HOME para forçar a exibição do seletor
-            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                addCategory(Intent.CATEGORY_HOME)
+            val a11yIntent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
-            startActivity(Intent.createChooser(homeIntent, "Selecione 'Fasano SMARTTV' e toque em 'Sempre'"))
-
-            // 3. Desabilita a FakeHomeActivity após 2.5 segundos
-            handler.postDelayed({
-                try {
-                    pm.setComponentEnabledSetting(
-                        fakeComponent,
-                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                        PackageManager.DONT_KILL_APP
-                    )
-                } catch (ignored: Exception) {}
-            }, 2500)
+            Toast.makeText(this, "Ative 'Fasano SMARTTV' em Acessibilidade para blindar a tecla Home!", Toast.LENGTH_LONG).show()
+            startActivity(a11yIntent)
         } catch (e: Exception) {
-            Log.e(TAG, "Falha ao acionar seletor de launcher padrão", e)
+            Log.e(TAG, "Falha ao abrir configurações de acessibilidade", e)
             openAndroidSystemSettings()
         }
     }
@@ -377,6 +354,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun exitToStockLauncher() {
         exoPlayer?.pause()
+        com.smarttv.launcher.service.LauncherAccessibilityService.isExitingAuthorized = true
         try {
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
@@ -1065,16 +1043,6 @@ class MainActivity : AppCompatActivity() {
     private fun applyConfig(config: TVConfigResponse) {
         this.currentConfig = config
 
-        if (SmartTVApp.instance.isPaired() && !hasRequestedDefaultLauncherOnce && !isDefaultLauncher()) {
-            hasRequestedDefaultLauncherOnce = true
-            handler.postDelayed({
-                if (!isFinishing && !isDefaultLauncher()) {
-                    Toast.makeText(this, "Para bloquear a saída pelo botão Home, defina o Fasano SMARTTV como padrão ('Sempre')", Toast.LENGTH_LONG).show()
-                    requestSetDefaultLauncher()
-                }
-            }, 3500)
-        }
-
         // 1. Atualiza textos e Wi-Fi
         val custom = config.customSettings ?: emptyMap()
         val guestName = (custom["guest_name"] as? String)?.trim() ?: ""
@@ -1762,11 +1730,12 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
 
+        val triggerPin = intent?.getBooleanExtra("TRIGGER_ADMIN_PIN", false) ?: false
         val isHomeIntent = intent?.action == Intent.ACTION_MAIN && 
             (intent.hasCategory(Intent.CATEGORY_HOME) || intent.hasCategory(Intent.CATEGORY_DEFAULT))
 
-        if (isHomeIntent) {
-            if (hasLaunchedExternalApp) {
+        if (triggerPin || isHomeIntent) {
+            if (hasLaunchedExternalApp && !triggerPin) {
                 // Usuário retornou de um aplicativo externo (Netflix, YouTube, HDMI)
                 hasLaunchedExternalApp = false
             } else {
@@ -1791,6 +1760,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.smarttv.launcher.service.LauncherAccessibilityService.isExitingAuthorized = false
         if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
             exoPlayer?.play()
         }

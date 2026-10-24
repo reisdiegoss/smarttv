@@ -56,18 +56,18 @@
             </intent-filter>
         </activity>
 
-        <!-- Fake Activity desabilitada usada para forçar o seletor de Launcher padrão no Android TV -->
-        <activity
-            android:name=".ui.FakeHomeActivity"
-            android:enabled="false"
-            android:exported="true"
-            android:label="Fasano SMARTTV Config">
+        <!-- Serviço de Acessibilidade para interceptar tecla Home no Google TV / Android TV -->
+        <service
+            android:name=".service.LauncherAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
+                <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
-        </activity>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
 
         <!-- Tela de Pareamento (Exibe Código PIN para cadastro no painel) -->
         <activity

@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Fasano SMARTTV</string>
+    <string name="accessibility_service_description">Proteção de tela e interceptação da tecla Home para manter o Fasano SMARTTV como interface principal.</string>
 </resources>
