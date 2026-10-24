@@ -149,16 +149,20 @@ adb shell pm enable com.google.android.apps.tv.launcherx
 
 ## 5. Histórico de Versões e Changelog Recente
 
-### v1.1.1 (24/10/2026)
-- **Correção da Tela Preta e Retomada de Áudio do ExoPlayer**:
-  - Migração de `surface_view` para `texture_view` no layout principal (`activity_main.xml`), eliminando a destruição de hardware surface ao abrir aplicativos de vídeo externos (YouTube, Netflix).
-  - Implementação de `AudioAttributes` com foco de áudio automático (`handleAudioFocus = true`), garantindo que o áudio do vídeo corporativo seja readquirido imediatamente ao voltar à tela inicial.
-  - Implementação do método `resumeVideoPlayback()` com listener de erro (`Player.Listener`) e auto-recuperação automática em caso de liberação de codecs de hardware.
-- **Automação e Assistente de Limpeza de Dados dos Apps**:
-  - Remoção de `com.android.tv.settings` da lista de bloqueio de acessibilidade, permitindo a abertura das telas de armazenamento do sistema.
-  - Adição de `AdminReceiver` e política de dispositivo (`device_admin.xml`) para suporte a Device Owner (`dpm set-device-owner com.smarttv.launcher/.receiver.AdminReceiver`).
-  - Implementação de limpeza assistida no `LauncherAccessibilityService`: navega e clica automaticamente em "Limpar dados" / "Confirmar" na tela de configurações de cada app configurado.
-  - Novo diálogo com opções de "Limpeza Automática Assistida" ou "Abrir Apps Individualmente" para os aplicativos que exigem autorização.
+### v1.1.2 (24/10/2026)
+- **Refinamento Visual dos Grids de Ajustes (Menu / HDMI / Apps)**:
+  - **Remoção do Botão Superior**: Removido o botão "Definir como Launcher Padrão" da barra superior da tela de ajustes, mantendo-o exclusivamente dentro do Painel do Administrador (PIN `0000`).
+  - **Coluna Esquerda Compacta e Sem Transbordo**: Ajustada a altura e o padding da coluna de seleção de portas HDMI. O foco pelo controle remoto agora para exatamente no botão *"Trocar Quarto desta TV"* sem navegar para o espaço vazio ("limpo") e sem cortar itens.
+  - **Coluna Direita de Apps Otimizada**: Removida a barra de rolagem cinza nativa do Android (`scrollbars="none"`). Itens compactados (`item_tv_app_toggle.xml`) para exibir 5 aplicativos simultâneos confortavelmente na tela.
+  - **Botão Fixo de Conclusão**: O botão *"✓ CONCLUIR E VOLTAR AO VÍDEO"* foi destacado e fixado na base do card com visual pill moderno.
+- **Gerenciamento e Limpeza de Aplicativos Remota via Servidor ADB**:
+  - **Infraestrutura ADB no Servidor Linux (`192.168.168.27`)**: Pacote `adb` configurado no host Linux para comunicação direta na VLAN das TVs (`10.40.0.0/24`).
+  - **Módulo `TVAdbManager` (`backend/app/services/adb_service.py`)**: Conexão automática ao IP da TV na porta `5555`, verificação de chave RSA e execução de comandos assíncronos.
+  - **Limpeza 100% Silenciosa e Eficaz (`pm clear`)**: Execução de `pm clear` direto pelo servidor para todos os apps de streaming configurados (YouTube, Netflix, Prime Video, Globoplay, Disney+, Max), limpando dados, credenciais de hóspedes e cache com retorno imediato de `Success`.
+  - **Painel Administrativo Web (`TVModal.jsx`)**: Nova **Seção 8: Gerenciamento Remoto via Servidor (ADB & Limpeza de Apps)** com botões de *"Testar Conexão ADB"*, *"Preparar TV (Device Owner)"* e *"Limpar Apps Agora via Servidor"*.
+  - **Instalação e Atualização Remota Instantânea**: O servidor agora é capaz de enviar e atualizar versões do APK silenciosamente para a TV via `adb install -r`.
+
+
 
 ### v1.1.0 (24/10/2026)
 - **Código Secreto na Tecla HOME**: Acesso ao menu de Administrador (PIN) agora exige **3 toques rápidos consecutivos na tecla HOME** (janela de tempo inferior a 1.5s). Toques únicos ou esporádicos mantêm o hóspede na interface sem pedir senha.

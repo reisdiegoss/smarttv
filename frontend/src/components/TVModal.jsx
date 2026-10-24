@@ -98,6 +98,30 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
   const fileInputRef = useRef(null);
 
   const [weatherData, setWeatherData] = useState(null);
+  const [adbStatus, setAdbStatus] = useState(null);
+  const [adbLoading, setAdbLoading] = useState(false);
+
+  const handleAdbAction = async (endpoint, actionName) => {
+    if (!tv?.id) return;
+    setAdbLoading(true);
+    setAdbStatus({ type: 'info', message: `Executando ${actionName}...` });
+    try {
+      const res = await fetch(`/api/tvs/${tv.id}/${endpoint}`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setAdbStatus({ type: 'error', message: data.detail || data.message || 'Erro na operação' });
+      } else {
+        setAdbStatus({ 
+          type: (data.status === 'connected' || data.status === 'success' || data.status === 'completed') ? 'success' : 'warning',
+          message: data.message || JSON.stringify(data)
+        });
+      }
+    } catch (err) {
+      setAdbStatus({ type: 'error', message: 'Falha de comunicação com o servidor: ' + err.message });
+    } finally {
+      setAdbLoading(false);
+    }
+  };
 
   const handleFetchCityWeather = async (cityName) => {
     const city = cityName || customSettings.weather_city || 'Salvador';
@@ -1418,6 +1442,111 @@ export default function TVModal({ isOpen, onClose, onSave, tv, layouts, playlist
                 />
               </div>
             </div>
+
+            {/* Seção 8: Gerenciamento Remoto via Servidor (ADB & Limpeza de Apps) */}
+            {tv && (
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.05)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: 14,
+                padding: 16
+              }}>
+                <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#34d399', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Activity size={18} color="#34d399" />
+                  Gerenciamento Remoto via Servidor (ADB &amp; Limpeza Automática)
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.4 }}>
+                  O servidor comunica diretamente com a TV na rede local para desbloquear permissões de administrador (Device Owner) e limpar contas e dados do YouTube, Netflix, Prime Video, etc.
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+                  <div style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    fontSize: '0.80rem',
+                    color: '#e2e8f0',
+                    fontFamily: 'monospace'
+                  }}>
+                    IP da TV: <strong>{tv.ip_address || '10.40.0.70'}</strong>
+                  </div>
+                  <div style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    background: tv.is_online ? 'rgba(52, 211, 153, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    color: tv.is_online ? '#34d399' : '#f87171',
+                    fontSize: '0.80rem',
+                    fontWeight: 600
+                  }}>
+                    ● {tv.is_online ? 'TV Online' : 'TV Offline'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    disabled={adbLoading}
+                    onClick={() => handleAdbAction('adb-connect', 'Conexão ADB')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.80rem' }}
+                  >
+                    🔌 Testar Conexão ADB
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={adbLoading}
+                    onClick={() => handleAdbAction('adb-prepare', 'Ativação Device Owner')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.80rem', borderColor: '#3b82f6', color: '#60a5fa' }}
+                  >
+                    🛡️ Preparar TV (Ativar Device Owner)
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={adbLoading}
+                    onClick={() => handleAdbAction('adb-clear-apps', 'Limpeza Remota de Apps')}
+                    className="btn btn-sm"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: '0.80rem',
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      border: '1px solid #ef4444',
+                      color: '#f87171',
+                      fontWeight: 700
+                    }}
+                  >
+                    🧹 Limpar Apps Agora via Servidor
+                  </button>
+                </div>
+
+                {adbStatus && (
+                  <div style={{
+                    marginTop: 12,
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    fontSize: '0.80rem',
+                    lineHeight: 1.4,
+                    background: adbStatus.type === 'success' ? 'rgba(52, 211, 153, 0.15)' :
+                               adbStatus.type === 'error' ? 'rgba(239, 68, 68, 0.15)' :
+                               adbStatus.type === 'warning' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                    border: `1px solid ${
+                      adbStatus.type === 'success' ? '#34d399' :
+                      adbStatus.type === 'error' ? '#ef4444' :
+                      adbStatus.type === 'warning' ? '#f59e0b' : '#3b82f6'
+                    }`,
+                    color: adbStatus.type === 'success' ? '#a7f3d0' :
+                           adbStatus.type === 'error' ? '#fca5a5' :
+                           adbStatus.type === 'warning' ? '#fde68a' : '#bfdbfe'
+                  }}>
+                    {adbStatus.message}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="modal-footer" style={{ marginTop: 20 }}>

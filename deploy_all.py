@@ -68,6 +68,7 @@ backend_files = [
     ("backend/app/main.py", "/opt/smarttv/backend/app/main.py"),
     ("backend/app/services/weather_service.py", "/opt/smarttv/backend/app/services/weather_service.py"),
     ("backend/app/services/fias_service.py", "/opt/smarttv/backend/app/services/fias_service.py"),
+    ("backend/app/services/adb_service.py", "/opt/smarttv/backend/app/services/adb_service.py"),
     ("backend/app/api/shortcuts.py", "/opt/smarttv/backend/app/api/shortcuts.py"),
     ("backend/app/api/pms.py", "/opt/smarttv/backend/app/api/pms.py"),
     ("backend/app/api/tvs.py", "/opt/smarttv/backend/app/api/tvs.py"),

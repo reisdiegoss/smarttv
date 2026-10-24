@@ -17,6 +17,7 @@ from app.models.dto import (
     SmartTVBindRequest, SmartTVQuickUpdateRequest, SmartTVAssignDeviceRequest, TVClientConfig,
     SmartTVPmsSyncRequest, TVGroupOut, SmartTVUnpairRequest
 )
+from app.services.adb_service import TVAdbManager
 
 router = APIRouter(prefix="/tvs", tags=["Smart TVs"])
 
@@ -592,7 +593,7 @@ async def assign_device(payload: SmartTVAssignDeviceRequest, request: Request, d
 
 # Heartbeat Ping from APK (returns updated_at so TV reloads in real-time if changed in dashboard)
 @router.post("/ping")
-async def tv_ping(payload: SmartTVPingRequest, db: AsyncSession = Depends(get_db)):
+async def tv_ping(payload: SmartTVPingRequest, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(SmartTV)
         .options(selectinload(SmartTV.group))
@@ -604,8 +605,19 @@ async def tv_ping(payload: SmartTVPingRequest, db: AsyncSession = Depends(get_db
 
     tv.last_ping = datetime.utcnow()
     tv.is_online = True
-    if payload.ip_address:
-        tv.ip_address = payload.ip_address
+    
+    # Auto-detecta IP da TV na rede
+    detected_ip = payload.ip_address
+    if not detected_ip:
+        fwd = request.headers.get("X-Forwarded-For")
+        if fwd:
+            detected_ip = fwd.split(",")[0].strip()
+        elif request.client:
+            detected_ip = request.client.host
+    
+    if detected_ip and detected_ip not in ("127.0.0.1", "localhost", "::1"):
+        tv.ip_address = detected_ip
+
     if payload.app_version:
         tv.app_version = payload.app_version
 
@@ -916,3 +928,65 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
         custom_settings=merged_settings,
         server_time=datetime.utcnow()
     )
+
+# --- ENDPOINTS ADB (CONTROLE E LIMPEZA REMOTA PELO SERVIDOR) ---
+
+@router.post("/{tv_id}/adb-connect")
+async def adb_connect_endpoint(tv_id: int, db: AsyncSession = Depends(get_db)):
+    """Tenta conectar o ADB do servidor ao IP da TV"""
+    tv = await db.get(SmartTV, tv_id)
+    if not tv:
+        raise HTTPException(status_code=404, detail="TV não encontrada")
+    if not tv.ip_address:
+        raise HTTPException(status_code=400, detail="A TV ainda não possui IP detectado na rede.")
+    return await TVAdbManager.connect_tv(tv.ip_address)
+
+@router.post("/{tv_id}/adb-prepare")
+async def adb_prepare_endpoint(tv_id: int, db: AsyncSession = Depends(get_db)):
+    """Define o app Fasano SMARTTV como Device Owner via ADB"""
+    tv = await db.get(SmartTV, tv_id)
+    if not tv:
+        raise HTTPException(status_code=404, detail="TV não encontrada")
+    if not tv.ip_address:
+        raise HTTPException(status_code=400, detail="A TV ainda não possui IP detectado na rede.")
+    res = await TVAdbManager.prepare_device_owner(tv.ip_address)
+    
+    if res.get("status") == "success":
+        log = DeviceLog(
+            tv_id=tv.id,
+            event_type="DEVICE_OWNER",
+            message=f"TV configurada como Device Owner com sucesso via ADB pelo servidor!"
+        )
+        db.add(log)
+        await db.commit()
+    return res
+
+@router.post("/{tv_id}/adb-clear-apps")
+async def adb_clear_apps_endpoint(tv_id: int, db: AsyncSession = Depends(get_db)):
+    """Limpa dados e contas de todos os apps (YouTube, Netflix, etc.) via ADB pelo servidor"""
+    tv = await db.get(SmartTV, tv_id)
+    if not tv:
+        raise HTTPException(status_code=404, detail="TV não encontrada")
+    if not tv.ip_address:
+        raise HTTPException(status_code=400, detail="A TV ainda não possui IP detectado na rede.")
+    
+    # Extrai pacotes configurados na TV
+    extra_pkgs = []
+    if tv.selected_shortcuts:
+        sc_res = await db.execute(select(AppShortcut).where(AppShortcut.id.in_(tv.selected_shortcuts)))
+        for sc in sc_res.scalars().all():
+            if sc.package_name and not sc.is_hdmi:
+                extra_pkgs.append(sc.package_name)
+
+    res = await TVAdbManager.clear_tv_apps(tv.ip_address, extra_pkgs)
+    
+    if res.get("status") == "completed":
+        log = DeviceLog(
+            tv_id=tv.id,
+            event_type="APP_CLEANUP",
+            message=f"Limpeza remota ADB concluída pelo servidor: {res.get('cleared_count')} aplicativo(s) limpos com sucesso!"
+        )
+        db.add(log)
+        await db.commit()
+    return res
+

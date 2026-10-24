@@ -101,7 +101,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutPairing: View
     private lateinit var tvOverlayTitle: TextView
     private lateinit var tvServerStatus: TextView
-    private lateinit var btnSetDefaultLauncherTop: Button
     private lateinit var btnSetDefaultLauncherBottom: Button
 
     // Mode 1: Initial Pairing (Unpaired)
@@ -119,8 +118,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnHdmi3: Button
     private lateinit var btnHdmiNone: Button
     private lateinit var btnSettingsSwitchRoom: Button
-    private lateinit var btnSetDefaultLauncher: Button
-    private lateinit var btnSettingsExitApp: Button
     private lateinit var containerSettingsApps: LinearLayout
     private lateinit var btnSettingsDone: Button
 
@@ -203,7 +200,6 @@ class MainActivity : AppCompatActivity() {
         layoutPairing = findViewById(R.id.layoutPairing)
         tvOverlayTitle = findViewById(R.id.tvOverlayTitle)
         tvServerStatus = findViewById(R.id.tvServerStatus)
-        btnSetDefaultLauncherTop = findViewById(R.id.btnSetDefaultLauncherTop)
         btnSetDefaultLauncherBottom = findViewById(R.id.btnSetDefaultLauncherBottom)
 
         // Mode 1: Inicial (Não pareado)
@@ -221,8 +217,6 @@ class MainActivity : AppCompatActivity() {
         btnHdmi3 = findViewById(R.id.btnHdmi3)
         btnHdmiNone = findViewById(R.id.btnHdmiNone)
         btnSettingsSwitchRoom = findViewById(R.id.btnSettingsSwitchRoom)
-        btnSetDefaultLauncher = findViewById(R.id.btnSetDefaultLauncher)
-        btnSettingsExitApp = findViewById(R.id.btnSettingsExitApp)
         containerSettingsApps = findViewById(R.id.containerSettingsApps)
         btnSettingsDone = findViewById(R.id.btnSettingsDone)
 
@@ -808,10 +802,7 @@ class MainActivity : AppCompatActivity() {
         btnHdmi3.setOnClickListener { selectHdmiPortOnTv("HDMI 3") }
         btnHdmiNone.setOnClickListener { selectHdmiPortOnTv("NONE") }
 
-        btnSetDefaultLauncher.setOnClickListener { requestSetDefaultLauncher() }
-        btnSetDefaultLauncherTop.setOnClickListener { requestSetDefaultLauncher() }
         btnSetDefaultLauncherBottom.setOnClickListener { requestSetDefaultLauncher() }
-        btnSettingsExitApp.setOnClickListener { exitToStockLauncher() }
 
         btnSettingsDone.setOnClickListener {
             showLauncherScreen()
