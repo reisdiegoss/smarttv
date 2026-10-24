@@ -385,21 +385,55 @@ class FIASService:
         )
 
         if "linkstart" in tag_lower:
-            self.log_timeline(
-                "HANDSHAKE", "SUCCESS", "XML LinkStart Recebido",
-                "IFC8 abriu sessão XML. Respondendo com LinkDescription e LinkAlive...",
-                raw_packet=record
-            )
-            await self._send_packet(f'<LinkDescription Date="{da}" Time="{ti}" InterfaceFamily="TV" VerNum="1.00"/>')
-            await self._send_packet(f'<LinkAlive Date="{da}" Time="{ti}"/>')
+            if self.port == 5001:
+                self.log_timeline(
+                    "HANDSHAKE", "SUCCESS", "XML LinkStart Recebido (Porta 5001)",
+                    "IFC8 abriu sessão XML. Respondendo com LinkDescription e LinkAlive XML...",
+                    raw_packet=record
+                )
+                await self._send_packet(f'<LinkDescription Date="{da}" Time="{ti}" InterfaceFamily="TV" VerNum="1.00"/>')
+                await self._send_packet(f'<LinkAlive Date="{da}" Time="{ti}"/>')
+            else:
+                # Porta 5020 (Padrão IFC8 / FIAS_LEU): Embora o IFC8 emita <LinkStart .../>, o driver FIAS_LEU requer
+                # handshake em ASCII FIAS. Responder com XML LinkDescription gera App_Parse_Schema_Exception.
+                self.log_timeline(
+                    "HANDSHAKE", "SUCCESS", "LinkStart Recebido do IFC8",
+                    "IFC8 iniciou link na porta 5020. Respondendo com LD (LinkDescription), LR (LinkRecords) e LA (LinkAlive) no padrão ASCII FIAS...",
+                    raw_packet=record
+                )
+                await self._send_packet(f"LD|DA{da}|TI{ti}|V#01.00|IFTV|")
+                await self._send_packet("LR|RIGI|FLRNGNG#GSGL|")
+                await self._send_packet("LR|RIGO|FLRN|")
+                await self._send_packet("LR|RIGC|FLRNGNG#GSGL|")
+                await self._send_packet("LR|RIDR|FLRN|")
+                await self._send_packet("LR|RIDS|")
+                await self._send_packet("LR|RIDE|")
+                await self._send_packet("LR|RILA|")
+                await self._send_packet(f"LA|DA{da}|TI{ti}|")
+
+                # Dispara Database Resync (DR) automático após o handshake
+                await asyncio.sleep(0.5)
+                await self._send_packet(f"DR|DA{da}|TI{ti}|")
+                self.log_timeline(
+                    "RESYNC", "INFO", "DR Automático Pós-Handshake",
+                    "Comando Database Resync (DR) transmitido ao IFC8 para carregar hóspedes ativos."
+                )
 
         elif "linkalive" in tag_lower:
-            self.log_timeline(
-                "HANDSHAKE", "INFO", "XML LinkAlive (Heartbeat)",
-                "Pulso de vida XML recebido do IFC8. Respondendo com LinkAlive...",
-                raw_packet=record
-            )
-            await self._send_packet(f'<LinkAlive Date="{da}" Time="{ti}"/>')
+            if self.port == 5001:
+                self.log_timeline(
+                    "HANDSHAKE", "INFO", "XML LinkAlive (Heartbeat)",
+                    "Pulso de vida XML recebido do IFC8. Respondendo com LinkAlive...",
+                    raw_packet=record
+                )
+                await self._send_packet(f'<LinkAlive Date="{da}" Time="{ti}"/>')
+            else:
+                self.log_timeline(
+                    "HANDSHAKE", "INFO", "Link Alive (LA / Heartbeat)",
+                    "IFC8 enviou pulso de vida. Respondendo com LA...",
+                    raw_packet=record
+                )
+                await self._send_packet(f"LA|DA{da}|TI{ti}|")
 
         elif "linkend" in tag_lower:
             self.log_timeline(
