@@ -407,7 +407,7 @@
                 android:background="@drawable/bg_clock_pill"
                 android:paddingHorizontal="10dp"
                 android:paddingVertical="4dp"
-                android:text="v1.0.4"
+                android:text="v1.1.0"
                 android:textColor="#94A3B8"
                 android:textSize="12sp" />
 
@@ -590,15 +590,16 @@
             android:orientation="horizontal"
             android:visibility="gone">
 
-            <!-- Coluna Esquerda: Ajuste da Entrada HDMI -->
+            <!-- Coluna Esquerda: Ajuste da Entrada HDMI e Gestão (Bloco Independente) -->
             <LinearLayout
+                android:id="@+id/panelSettingsLeftColumn"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:layout_marginEnd="12dp"
                 android:background="@drawable/bg_card_dark"
                 android:orientation="vertical"
-                android:padding="24dp">
+                android:padding="20dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -613,57 +614,65 @@
                     android:id="@+id/tvCurrentHdmiState"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="6dp"
                     android:text="Porta Selecionada: HDMI 1"
                     android:textColor="#E2E8F0"
-                    android:textSize="14sp" />
+                    android:textSize="13sp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
+                    android:layout_marginTop="2dp"
                     android:text="Selecione onde o decodificador está conectado nesta TV:"
                     android:textColor="#94A3B8"
-                    android:textSize="13sp" />
+                    android:textSize="12sp" />
 
                 <!-- Grid de Chips HDMI Selecionáveis via Controle Remoto -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:layout_marginTop="16dp">
+                    android:layout_marginTop="12dp">
 
                     <Button
                         android:id="@+id/btnHdmi1"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="8dp"
+                        android:layout_marginBottom="6dp"
                         android:background="@drawable/bg_chip_button"
+                        android:nextFocusDown="@+id/btnHdmi2"
+                        android:nextFocusRight="@+id/scrollSettingsApps"
                         android:text="Porta HDMI 1"
                         android:textColor="#FFFFFF"
-                        android:textSize="15sp"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <Button
                         android:id="@+id/btnHdmi2"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="8dp"
+                        android:layout_marginBottom="6dp"
                         android:background="@drawable/bg_chip_button"
+                        android:nextFocusUp="@+id/btnHdmi1"
+                        android:nextFocusDown="@+id/btnHdmi3"
+                        android:nextFocusRight="@+id/scrollSettingsApps"
                         android:text="Porta HDMI 2"
                         android:textColor="#FFFFFF"
-                        android:textSize="15sp"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <Button
                         android:id="@+id/btnHdmi3"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="8dp"
+                        android:layout_marginBottom="6dp"
                         android:background="@drawable/bg_chip_button"
+                        android:nextFocusUp="@+id/btnHdmi2"
+                        android:nextFocusDown="@+id/btnHdmiNone"
+                        android:nextFocusRight="@+id/scrollSettingsApps"
                         android:text="Porta HDMI 3"
                         android:textColor="#FFFFFF"
-                        android:textSize="15sp"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <Button
@@ -671,9 +680,12 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:background="@drawable/bg_chip_button"
+                        android:nextFocusUp="@+id/btnHdmi3"
+                        android:nextFocusDown="@+id/btnSettingsSwitchRoom"
+                        android:nextFocusRight="@+id/scrollSettingsApps"
                         android:text="Sem HDMI (Ocultar botão Sky nesta TV)"
                         android:textColor="#94A3B8"
-                        android:textSize="14sp" />
+                        android:textSize="13sp" />
                 </LinearLayout>
 
                 <View
@@ -687,6 +699,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:background="@drawable/bg_chip_button"
+                    android:nextFocusUp="@+id/btnHdmiNone"
+                    android:nextFocusDown="@+id/btnSetDefaultLauncher"
+                    android:nextFocusRight="@+id/scrollSettingsApps"
                     android:text="🔄 Trocar Quarto desta TV"
                     android:textColor="#F59E0B"
                     android:textSize="13sp" />
@@ -698,7 +713,10 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/bg_clock_pill"
-                    android:paddingVertical="12dp"
+                    android:nextFocusUp="@+id/btnSettingsSwitchRoom"
+                    android:nextFocusDown="@+id/btnSettingsExitApp"
+                    android:nextFocusRight="@+id/scrollSettingsApps"
+                    android:paddingVertical="10dp"
                     android:text="🏠 Definir como Launcher Padrão"
                     android:textColor="#38BDF8"
                     android:textSize="13sp"
@@ -711,7 +729,10 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/bg_chip_button"
-                    android:paddingVertical="12dp"
+                    android:nextFocusUp="@+id/btnSetDefaultLauncher"
+                    android:nextFocusDown="@+id/btnSettingsExitApp"
+                    android:nextFocusRight="@+id/btnSettingsDone"
+                    android:paddingVertical="10dp"
                     android:text="🚪 Sair para Tela Inicial da TV (Launcher Original)"
                     android:textColor="#EF4444"
                     android:textSize="13sp"
@@ -719,15 +740,16 @@
 
             </LinearLayout>
 
-            <!-- Coluna Direita: Aplicativos Visíveis na Barra -->
+            <!-- Coluna Direita: Aplicativos Visíveis na Barra (Bloco Independente) -->
             <LinearLayout
+                android:id="@+id/panelSettingsRightColumn"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:layout_marginStart="12dp"
                 android:background="@drawable/bg_card_dark"
                 android:orientation="vertical"
-                android:padding="24dp">
+                android:padding="20dp">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -741,17 +763,20 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="6dp"
                     android:text="Pressione OK em um app para ligar ou desligar da barra:"
                     android:textColor="#E2E8F0"
-                    android:textSize="14sp" />
+                    android:textSize="13sp" />
 
                 <ScrollView
+                    android:id="@+id/scrollSettingsApps"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1"
-                    android:layout_marginTop="14dp"
-                    android:scrollbars="vertical">
+                    android:layout_marginTop="12dp"
+                    android:fillViewport="true"
+                    android:scrollbars="vertical"
+                    android:fadeScrollbars="false">
 
                     <LinearLayout
                         android:id="@+id/containerSettingsApps"
@@ -767,10 +792,12 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:background="@drawable/bg_shortcut_sky"
-                    android:paddingVertical="14dp"
+                    android:nextFocusLeft="@+id/btnSettingsExitApp"
+                    android:nextFocusUp="@+id/scrollSettingsApps"
+                    android:paddingVertical="12dp"
                     android:text="✔️ Concluir e Voltar ao Vídeo"
                     android:textColor="#FFFFFF"
-                    android:textSize="16sp"
+                    android:textSize="15sp"
                     android:textStyle="bold" />
             </LinearLayout>
 

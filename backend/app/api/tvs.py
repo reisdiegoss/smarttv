@@ -15,7 +15,7 @@ from app.models.dto import (
     SmartTVOut, SmartTVCreate, SmartTVUpdate,
     SmartTVPairRequest, SmartTVClaimRequest, SmartTVPingRequest,
     SmartTVBindRequest, SmartTVQuickUpdateRequest, SmartTVAssignDeviceRequest, TVClientConfig,
-    SmartTVPmsSyncRequest, TVGroupOut
+    SmartTVPmsSyncRequest, TVGroupOut, SmartTVUnpairRequest
 )
 
 router = APIRouter(prefix="/tvs", tags=["Smart TVs"])
@@ -655,6 +655,30 @@ async def quick_update(payload: SmartTVQuickUpdateRequest, request: Request, db:
     await db.refresh(tv)
     return {"status": "ok", "message": "TV atualizada com sucesso", "tv_id": tv.id}
 
+# Unpair Device Endpoint (Called when TV technician selects "Trocar Quarto desta TV")
+@router.post("/unpair-device")
+async def unpair_device(payload: SmartTVUnpairRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(SmartTV).where(SmartTV.device_id == payload.device_id.strip()))
+    tv = result.scalar_one_or_none()
+    if not tv:
+        # Se não achou por device_id exato, nada a desvincular
+        return {"status": "ok", "message": "Dispositivo já não estava vinculado"}
+
+    # Desvincula o device_id para permitir que o aparelho seja vinculado a outro quarto
+    old_name = tv.name
+    tv.device_id = f"UNPAIRED-{tv.id}-{uuid.uuid4().hex[:6]}"
+    tv.is_paired = False
+    tv.updated_at = datetime.utcnow()
+
+    log = DeviceLog(
+        tv_id=tv.id,
+        event_type="UNPAIR",
+        message=f"TV '{old_name}' desvinculada pelo controle para troca de quarto"
+    )
+    db.add(log)
+    await db.commit()
+    return {"status": "ok", "message": f"TV '{old_name}' desvinculada com sucesso"}
+
 # PMS Hospitality Integration Endpoint (Sincronização de UH e Hóspede via Sistema Externo)
 @router.post("/pms-sync")
 async def pms_sync_guest(payload: SmartTVPmsSyncRequest, request: Request, db: AsyncSession = Depends(get_db)):
@@ -802,7 +826,8 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
                     "icon_url": s.icon_url,
                     "background_color": s.background_color,
                     "is_hdmi": s.is_hdmi,
-                    "is_system_app": s.is_system_app
+                    "is_system_app": s.is_system_app,
+                    "show_title": getattr(s, "show_title", True) if getattr(s, "show_title", True) is not None else True
                 })
     else:
         # Fallback to default apps (non-HDMI)
@@ -817,7 +842,8 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
                 "icon_url": s.icon_url,
                 "background_color": s.background_color,
                 "is_hdmi": s.is_hdmi,
-                "is_system_app": s.is_system_app
+                "is_system_app": s.is_system_app,
+                "show_title": getattr(s, "show_title", True) if getattr(s, "show_title", True) is not None else True
             })
 
     # 3. Playlist com Herança
@@ -882,7 +908,8 @@ async def get_tv_client_config(device_id: str, db: AsyncSession = Depends(get_db
             "label": effective_hdmi_label or "TV SKY",
             "action": "action.switch_hdmi",
             "background_color": hdmi_sc.background_color if hdmi_sc else None,
-            "icon_url": hdmi_sc.icon_url if hdmi_sc else None
+            "icon_url": hdmi_sc.icon_url if hdmi_sc else None,
+            "show_title": getattr(hdmi_sc, "show_title", True) if (hdmi_sc and getattr(hdmi_sc, "show_title", True) is not None) else True
         },
         shortcuts=shortcuts_data,
         playlist=playlist_data,

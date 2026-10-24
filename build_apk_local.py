@@ -16,6 +16,14 @@ if os.path.exists(jbr_path):
 print(f"Diretório: {APP_DIR}")
 print(f"JAVA_HOME: {env.get('JAVA_HOME')}")
 
+apk_src = os.path.join(APP_DIR, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
+if os.path.exists(apk_src):
+    try:
+        os.remove(apk_src)
+        print(f"APK antigo removido antes do build: {apk_src}")
+    except Exception as e:
+        print(f"Aviso ao remover APK antigo: {e}")
+
 cmd = r".\gradlew.bat assembleDebug -Dkotlin.compiler.execution.strategy=in-process --no-daemon --stacktrace"
 print(f">> Executando: {cmd}")
 
@@ -46,10 +54,13 @@ process.wait()
 with open(os.path.join(BASE_DIR, "local_build.log"), "w", encoding="utf-8") as f:
     f.writelines(output_lines)
 
-apk_src = os.path.join(APP_DIR, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
-if process.returncode != 0 and not os.path.exists(apk_src):
+if process.returncode != 0:
     print(f"\n[FALHA] NO BUILD LOCAL (codigo {process.returncode})")
     sys.exit(process.returncode)
+
+if not os.path.exists(apk_src):
+    print(f"\n[FALHA] APK nao foi gerado em {apk_src}")
+    sys.exit(1)
 
 print("\n[SUCESSO] BUILD REALIZADO COM SUCESSO!")
 if os.path.exists(apk_src):

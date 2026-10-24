@@ -37,6 +37,7 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
   const [formOrder, setFormOrder] = useState(0);
   const [formIsHdmi, setFormIsHdmi] = useState(false);
   const [formIsSystem, setFormIsSystem] = useState(false);
+  const [formShowTitle, setFormShowTitle] = useState(true);
 
   const openCreateModal = () => {
     setEditingShortcut(null);
@@ -48,6 +49,7 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
     setFormOrder(shortcuts.length + 1);
     setFormIsHdmi(false);
     setFormIsSystem(false);
+    setFormShowTitle(true);
     setIsModalOpen(true);
   };
 
@@ -61,6 +63,7 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
     setFormOrder(sc.default_order ?? 0);
     setFormIsHdmi(Boolean(sc.is_hdmi));
     setFormIsSystem(Boolean(sc.is_system_app));
+    setFormShowTitle(sc.show_title !== false);
     setIsModalOpen(true);
   };
 
@@ -129,7 +132,8 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
         background_color: formBgColor.trim() || null,
         default_order: parseInt(formOrder) || 0,
         is_hdmi: formIsHdmi,
-        is_system_app: formIsSystem
+        is_system_app: formIsSystem,
+        show_title: formShowTitle
       };
 
       if (editingShortcut?.id) {
@@ -244,6 +248,11 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
                   {sc.is_system_app && !sc.is_hdmi && (
                     <span style={{ fontSize: '0.68rem', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
                       Sistema
+                    </span>
+                  )}
+                  {sc.show_title === false && (
+                    <span style={{ fontSize: '0.68rem', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.3)', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
+                      Apenas Logo (Sem Texto)
                     </span>
                   )}
                 </div>
@@ -553,6 +562,21 @@ export default function ShortcutsView({ shortcuts = [], onRefresh }) {
                     />
                     <span>Atalho HDMI SKY</span>
                   </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.8rem', color: '#38bdf8', fontWeight: 600 }}>
+                    <input 
+                      type="checkbox"
+                      checked={formShowTitle}
+                      onChange={e => setFormShowTitle(e.target.checked)}
+                      style={{ accentColor: '#38bdf8' }}
+                    />
+                    <span>Exibir nome/título do atalho</span>
+                  </label>
+                  {!formShowTitle && (
+                    <span style={{ fontSize: '0.70rem', color: '#c084fc' }}>
+                      ⚡ Modo Apenas Logo: o logotipo usará a área total do botão no dock.
+                    </span>
+                  )}
                 </div>
               </div>
 

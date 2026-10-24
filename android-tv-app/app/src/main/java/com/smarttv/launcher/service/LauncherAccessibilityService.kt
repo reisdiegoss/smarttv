@@ -53,12 +53,12 @@ class LauncherAccessibilityService : AccessibilityService() {
             }
 
             if (event.action == KeyEvent.ACTION_UP) {
-                Log.d(TAG, "Tecla HOME interceptada pelo AccessibilityService! Disparando PIN na MainActivity...")
+                Log.d(TAG, "Tecla HOME interceptada pelo AccessibilityService! Notificando MainActivity...")
                 val intent = Intent(this, MainActivity::class.java).apply {
                     action = Intent.ACTION_MAIN
                     addCategory(Intent.CATEGORY_HOME)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    putExtra("TRIGGER_ADMIN_PIN", true)
+                    putExtra("EXTRA_HOME_KEY_PRESSED", true)
                 }
                 startActivity(intent)
             }

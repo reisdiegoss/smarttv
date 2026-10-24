@@ -88,6 +88,7 @@ class AppShortcutBase(BaseModel):
     background_color: Optional[str] = None
     is_system_app: bool = False
     is_hdmi: bool = False
+    show_title: bool = True
     default_order: int = 0
 
 class AppShortcutUpdate(BaseModel):
@@ -98,6 +99,7 @@ class AppShortcutUpdate(BaseModel):
     background_color: Optional[str] = None
     is_system_app: Optional[bool] = None
     is_hdmi: Optional[bool] = None
+    show_title: Optional[bool] = None
     default_order: Optional[int] = None
 
 class AppShortcutOut(AppShortcutBase):
@@ -239,6 +241,9 @@ class SmartTVQuickUpdateRequest(BaseModel):
     hdmi_input_id: Optional[str] = None
     hdmi_label: Optional[str] = None
     selected_shortcuts: Optional[List[int]] = None
+
+class SmartTVUnpairRequest(BaseModel):
+    device_id: str
 
 class SmartTVOut(BaseModel):
     id: int

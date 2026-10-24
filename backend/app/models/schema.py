@@ -77,6 +77,7 @@ class AppShortcut(Base):
     background_color = Column(String(50), nullable=True) # e.g. "#E50914" or "rgba(0,0,0,0.45)"
     is_system_app = Column(Boolean, default=False)
     is_hdmi = Column(Boolean, default=False)
+    show_title = Column(Boolean, default=True) # Se True, exibe o nome abaixo do logo; se False, logo ocupa área total
     default_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 

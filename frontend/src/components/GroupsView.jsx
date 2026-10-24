@@ -1294,6 +1294,22 @@ export default function GroupsView({
                           style={{ width: '100%', accentColor: '#a78bfa', cursor: 'pointer' }}
                         />
                       </div>
+
+                      {/* Exibir Nomes dos Atalhos vs Apenas Logo */}
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.8rem', color: '#e2e8f0' }}>
+                          <input 
+                            type="checkbox"
+                            checked={formCustomSettings.show_shortcut_titles !== false}
+                            onChange={e => setFormCustomSettings({ ...formCustomSettings, show_shortcut_titles: e.target.checked })}
+                            style={{ width: 16, height: 16, accentColor: '#38bdf8' }}
+                          />
+                          <span><strong>Exibir nomes/textos dos atalhos nas TVs deste grupo</strong></span>
+                        </label>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 26, display: 'block', marginTop: 3 }}>
+                          Se desmarcado, remove o texto e os logotipos ocupam a área total dos botões na barra.
+                        </span>
+                      </div>
                     </div>
 
                     {/* 2. Tamanho da Mensagem na Tela */}

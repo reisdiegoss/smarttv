@@ -31,6 +31,9 @@ interface TVApiService {
     @POST("/api/tvs/quick-update")
     suspend fun quickUpdate(@Body body: QuickUpdateRequest): Map<String, Any>
 
+    @POST("/api/tvs/unpair-device")
+    suspend fun unpairDevice(@Body body: UnpairDeviceRequest): Map<String, Any>
+
     companion object {
         // IP padrão do servidor na rede local (configurável pelo app)
         private const val DEFAULT_BASE_URL = "http://192.168.168.27/"

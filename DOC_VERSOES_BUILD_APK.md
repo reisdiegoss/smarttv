@@ -10,9 +10,9 @@ Toda versão do aplicativo é regida por duas variáveis obrigatórias em `andro
 
 | Variável | Tipo | Descrição | Exemplo |
 | :--- | :--- | :--- | :--- |
-| `versionCode` | Inteiro | Número sequencial absoluto que **deve ser incrementado a cada build**. O Android rejeita atualizações onde o `versionCode` seja menor ou igual ao já instalado na TV. | `10` |
-| `versionName` | String | Versão semântica visível ao usuário e administradores no formato `MAJOR.MINOR.PATCH`. | `"1.0.9"` |
-| Git Tag | Tag | Identificador Git correspondente precedido pela letra `v`. | `v1.0.9` |
+| `versionCode` | Inteiro | Número sequencial absoluto que **deve ser incrementado a cada build**. O Android rejeita atualizações onde o `versionCode` seja menor ou igual ao já instalado na TV. | `11` |
+| `versionName` | String | Versão semântica visível ao usuário e administradores no formato `MAJOR.MINOR.PATCH`. | `"1.1.0"` |
+| Git Tag | Tag | Identificador Git correspondente precedido pela letra `v`. | `v1.1.0` |
 
 ### Arquivos Gerados a Cada Build (Trilogia de APKs)
 Para cada compilação, exatamente 3 arquivos são gerados e disponibilizados na raiz do sistema e nos repositórios:
@@ -144,3 +144,15 @@ adb shell pm disable-user --user 0 com.google.android.apps.tv.launcherx
 ```bash
 adb shell pm enable com.google.android.apps.tv.launcherx
 ```
+
+---
+
+## 5. Histórico de Versões e Changelog Recente
+
+### v1.1.0 (24/10/2026)
+- **Código Secreto na Tecla HOME**: Acesso ao menu de Administrador (PIN) agora exige **3 toques rápidos consecutivos na tecla HOME** (janela de tempo inferior a 1.5s). Toques únicos ou esporádicos mantêm o hóspede na interface sem pedir senha.
+- **Retorno de Aplicativos Sem Bloqueio**: Ao sair do YouTube, Netflix ou HDMI via botão HOME ou BACK, o APK retoma a reprodução contínua de vídeo e áudio corporativo de onde parou, sem exigir senha.
+- **Troca de Quarto na TV (Unpair)**: O botão *"Trocar Quarto desta TV"* no menu de ajustes rápidos desvincula a TV física no servidor via `/api/tvs/unpair-device`, mantendo o diálogo de pareamento aberto na tela até que um novo quarto seja selecionado.
+- **Navegação Independente nos Blocos de Ajustes**: A tela de ajustes rápidos do controle remoto divide as colunas esquerda (HDMI) e direita (Aplicativos Ativos) com foco vertical D-Pad isolado e rolagem independente.
+- **Opção de Atalhos Sem Texto (Modo Somente Logo)**: Cada aplicativo e entrada HDMI pode ter seu nome ocultado na dock (`show_title = false`), preenchendo a área completa do card com o logotipo sem cortes no rodapé.
+- **Limpeza Multi-camada de Dados e Cache**: Melhoria no mecanismo de limpeza ao fazer check-out com tentativa prioritária via root (`pm clear`), DevicePolicyManager e fallback.

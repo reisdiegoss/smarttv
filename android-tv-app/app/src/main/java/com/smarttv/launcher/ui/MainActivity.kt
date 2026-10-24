@@ -133,6 +133,10 @@ class MainActivity : AppCompatActivity() {
     private var pendingCleanupReport = false
     private var hasLaunchedExternalApp = false
     private var hasRequestedDefaultLauncherOnce = false
+    private var isSwitchingRoom: Boolean = false
+    private var homePressCount = 0
+    private var lastHomePressTimestamp = 0L
+    private val resetHomeCounterRunnable = Runnable { homePressCount = 0 }
 
     private fun isDefaultLauncher(): Boolean {
         return try {
@@ -219,6 +223,8 @@ class MainActivity : AppCompatActivity() {
         btnSettingsDone = findViewById(R.id.btnSettingsDone)
 
         tvDeviceIdInfo.text = "ID deste Dispositivo: ${SmartTVApp.instance.getTvDeviceId()}"
+        val tvOverlaySubtitle = findViewById<TextView>(R.id.tvOverlaySubtitle)
+        tvOverlaySubtitle?.text = "v${BuildConfig.VERSION_NAME}"
 
         setupSettingsListeners()
         initExoPlayer()
@@ -704,8 +710,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnSettingsSwitchRoom.setOnClickListener {
+            isSwitchingRoom = true
             SmartTVApp.instance.setPaired(false)
             currentConfig = null
+            val deviceId = SmartTVApp.instance.getTvDeviceId()
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
+                    api.unpairDevice(UnpairDeviceRequest(deviceId))
+                } catch (e: Exception) {
+                    Log.w(TAG, "Erro ao desvincular dispositivo no servidor", e)
+                }
+            }
             showPairingScreen()
         }
     }
@@ -789,6 +805,8 @@ class MainActivity : AppCompatActivity() {
 
             row.isFocusable = true
             row.isClickable = true
+            row.nextFocusLeftId = R.id.btnHdmi1
+            row.nextFocusRightId = View.NO_ID
 
             row.setOnClickListener {
                 if (selectedAppIds.contains(sc.id)) {
@@ -870,7 +888,7 @@ class MainActivity : AppCompatActivity() {
                     tvPairingCode.text = pairResp.pairingCode
                     tvPairingStatus.text = "Aguardando aprovação no painel ou seleção ao lado..."
 
-                    if (pairResp.isPaired) {
+                    if (pairResp.isPaired && !isSwitchingRoom) {
                         SmartTVApp.instance.setPaired(true)
                         showLauncherScreen()
                         loadConfigAndSetup()
@@ -949,6 +967,7 @@ class MainActivity : AppCompatActivity() {
                 )
 
                 withContext(Dispatchers.Main) {
+                    isSwitchingRoom = false
                     SmartTVApp.instance.setPaired(true)
                     Toast.makeText(this@MainActivity, "TV Vinculada com sucesso a ${tv.name}!", Toast.LENGTH_SHORT).show()
                     showLauncherScreen()
@@ -985,7 +1004,7 @@ class MainActivity : AppCompatActivity() {
                             )
                         )
                         val isPaired = (response["is_paired"] as? Boolean) ?: false
-                        if (isPaired) {
+                        if (isPaired && !isSwitchingRoom) {
                             withContext(Dispatchers.Main) {
                                 stopPairPolling()
                                 SmartTVApp.instance.setPaired(true)
@@ -1425,6 +1444,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 1. Botão HDMI SKY
+        val globalShowTitles = (customMap["show_shortcut_titles"] as? Boolean) ?: true
+
         if (config.hdmi.enabled && config.hdmi.inputId != "NONE" && config.hdmi.inputId.isNotBlank()) {
             val btnSky = layoutInflater.inflate(R.layout.item_shortcut_button, containerShortcuts, false)
             val textSky = btnSky.findViewById<TextView>(R.id.tvShortcutName)
@@ -1434,15 +1455,27 @@ class MainActivity : AppCompatActivity() {
             lp.marginEnd = dpToPx(14)
             btnSky.layoutParams = lp
 
-            val iconLp = iconSky.layoutParams
-            iconLp.width = iconSizePx
-            iconLp.height = iconSizePx
-            iconSky.layoutParams = iconLp
-
-            textSky.setTextSize(TypedValue.COMPLEX_UNIT_SP, dockTextSize)
-            textSky.text = config.hdmi.label
-
             val hdmiShortcut = config.shortcuts.firstOrNull { it.isHdmi }
+            val hdmiShowTitle = globalShowTitles && (hdmiShortcut?.showTitle ?: config.hdmi.showTitle ?: true)
+
+            if (!hdmiShowTitle) {
+                textSky.visibility = View.GONE
+                btnSky.setPadding(0, 0, 0, 0)
+                val iconLp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+                iconSky.layoutParams = iconLp
+                iconSky.setPadding(dpToPx(14), dpToPx(10), dpToPx(14), dpToPx(10))
+                iconSky.scaleType = ImageView.ScaleType.FIT_CENTER
+                iconSky.adjustViewBounds = true
+            } else {
+                textSky.visibility = View.VISIBLE
+                textSky.setTextSize(TypedValue.COMPLEX_UNIT_SP, dockTextSize)
+                textSky.text = config.hdmi.label
+                btnSky.setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6))
+                val iconLp = LinearLayout.LayoutParams(iconSizePx, iconSizePx)
+                iconSky.layoutParams = iconLp
+                iconSky.setPadding(0, 0, 0, 0)
+                iconSky.scaleType = ImageView.ScaleType.FIT_CENTER
+            }
             val hdmiBgColor = hdmiShortcut?.backgroundColor ?: config.hdmi.backgroundColor
             val hdmiIconUrl = hdmiShortcut?.iconUrl ?: config.hdmi.iconUrl
 
@@ -1485,13 +1518,26 @@ class MainActivity : AppCompatActivity() {
             lp.marginEnd = dpToPx(14)
             btnApp.layoutParams = lp
 
-            val iconLp = iconApp.layoutParams
-            iconLp.width = iconSizePx
-            iconLp.height = iconSizePx
-            iconApp.layoutParams = iconLp
+            val appShowTitle = globalShowTitles && (sc.showTitle ?: true)
 
-            textApp.setTextSize(TypedValue.COMPLEX_UNIT_SP, dockTextSize)
-            textApp.text = sc.name
+            if (!appShowTitle) {
+                textApp.visibility = View.GONE
+                btnApp.setPadding(0, 0, 0, 0)
+                val iconLp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+                iconApp.layoutParams = iconLp
+                iconApp.setPadding(dpToPx(14), dpToPx(10), dpToPx(14), dpToPx(10))
+                iconApp.scaleType = ImageView.ScaleType.FIT_CENTER
+                iconApp.adjustViewBounds = true
+            } else {
+                textApp.visibility = View.VISIBLE
+                textApp.setTextSize(TypedValue.COMPLEX_UNIT_SP, dockTextSize)
+                textApp.text = sc.name
+                btnApp.setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6))
+                val iconLp = LinearLayout.LayoutParams(iconSizePx, iconSizePx)
+                iconApp.layoutParams = iconLp
+                iconApp.setPadding(0, 0, 0, 0)
+                iconApp.scaleType = ImageView.ScaleType.FIT_CENTER
+            }
             applyShortcutBackground(btnApp, sc.backgroundColor)
 
             if (!sc.iconUrl.isNullOrBlank()) {
@@ -1702,14 +1748,55 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Intercepta código secreto (Home pressionado 3x seguidas em menos de 1.5s)
+     */
+    private fun handleHomeSecretPress() {
+        val now = System.currentTimeMillis()
+        if (now - lastHomePressTimestamp > 700L) {
+            homePressCount = 1
+        } else {
+            homePressCount++
+        }
+        lastHomePressTimestamp = now
+
+        handler.removeCallbacks(resetHomeCounterRunnable)
+        handler.postDelayed(resetHomeCounterRunnable, 1500L)
+
+        Log.d(TAG, "Secret Code - Contagem Tecla Home: $homePressCount/3")
+        if (homePressCount >= 3) {
+            homePressCount = 0
+            handler.removeCallbacks(resetHomeCounterRunnable)
+            Log.i(TAG, "Código secreto acionado (Home 3x)! Solicitando PIN de administrador...")
+            if (SmartTVApp.instance.isPaired()) {
+                promptAdminPinDialog()
+            } else {
+                showPairingScreen()
+            }
+        }
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Teclas MENU, SETTINGS, BACK / RETURN, ESCAPE, HOME ou APP_SWITCH abrem o menu de PIN do administrador
-        if (keyCode == KeyEvent.KEYCODE_MENU || 
-            keyCode == KeyEvent.KEYCODE_SETTINGS || 
-            keyCode == KeyEvent.KEYCODE_BACK || 
-            keyCode == KeyEvent.KEYCODE_ESCAPE ||
-            keyCode == KeyEvent.KEYCODE_HOME ||
-            keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
+        // Tecla BACK / RETURN / ESCAPE fecha painéis abertos, ou permanece na tela inicial sem pedir PIN
+        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
+            if (layoutPairing.visibility == View.VISIBLE) {
+                if (SmartTVApp.instance.isPaired()) {
+                    showLauncherScreen()
+                }
+                return true
+            }
+            // Na tela inicial do Launcher, não faz nada e nunca pede senha
+            return true
+        }
+
+        // Tecla HOME ou APP_SWITCH: aciona o detector do código secreto (Home 3x seguidas)
+        if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
+            handleHomeSecretPress()
+            return true
+        }
+
+        // Teclas MENU ou SETTINGS do controle físico: abrem configurações de administrador
+        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS) {
             if (layoutPairing.visibility == View.VISIBLE) {
                 if (SmartTVApp.instance.isPaired()) {
                     showLauncherScreen()
@@ -1730,21 +1817,22 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
 
-        val triggerPin = intent?.getBooleanExtra("TRIGGER_ADMIN_PIN", false) ?: false
-        val isHomeIntent = intent?.action == Intent.ACTION_MAIN && 
-            (intent.hasCategory(Intent.CATEGORY_HOME) || intent.hasCategory(Intent.CATEGORY_DEFAULT))
+        val isHomePressed = intent?.getBooleanExtra("EXTRA_HOME_KEY_PRESSED", false) ?: false
+        val isLegacyTriggerPin = intent?.getBooleanExtra("TRIGGER_ADMIN_PIN", false) ?: false
 
-        if (triggerPin || isHomeIntent) {
-            if (hasLaunchedExternalApp && !triggerPin) {
-                // Usuário retornou de um aplicativo externo (Netflix, YouTube, HDMI)
-                hasLaunchedExternalApp = false
-            } else {
-                // Usuário já estava na tela da TV Fasano e pressionou o botão HOME no controle:
-                // Não sai do app. Exibe a solicitação de PIN de administrador para acessar configurações e sair por dentro delas.
-                if (SmartTVApp.instance.isPaired() && layoutPairing.visibility != View.VISIBLE) {
-                    promptAdminPinDialog()
-                }
+        if (isHomePressed) {
+            handleHomeSecretPress()
+        } else if (isLegacyTriggerPin) {
+            if (SmartTVApp.instance.isPaired() && layoutPairing.visibility != View.VISIBLE) {
+                promptAdminPinDialog()
             }
+        }
+
+        if (hasLaunchedExternalApp) {
+            hasLaunchedExternalApp = false
+        }
+        if (layoutPairing.visibility != View.VISIBLE && currentConfig?.playlist?.items?.isNotEmpty() == true) {
+            exoPlayer?.play()
         }
     }
 

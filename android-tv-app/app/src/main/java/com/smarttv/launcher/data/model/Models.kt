@@ -20,7 +20,8 @@ data class HdmiConfig(
     @SerializedName("label") val label: String,
     @SerializedName("action") val action: String,
     @SerializedName("background_color") val backgroundColor: String? = null,
-    @SerializedName("icon_url") val iconUrl: String? = null
+    @SerializedName("icon_url") val iconUrl: String? = null,
+    @SerializedName("show_title") val showTitle: Boolean? = true
 )
 
 data class ShortcutItem(
@@ -31,7 +32,12 @@ data class ShortcutItem(
     @SerializedName("icon_url") val iconUrl: String? = null,
     @SerializedName("background_color") val backgroundColor: String? = null,
     @SerializedName("is_hdmi") val isHdmi: Boolean,
-    @SerializedName("is_system_app") val isSystemApp: Boolean
+    @SerializedName("is_system_app") val isSystemApp: Boolean,
+    @SerializedName("show_title") val showTitle: Boolean? = true
+)
+
+data class UnpairDeviceRequest(
+    @SerializedName("device_id") val deviceId: String
 )
 
 data class PlaylistData(

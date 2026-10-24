@@ -438,6 +438,7 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                     {tvShortcuts.map((item, idx) => {
                       const isFocused = idx === focusedIndex;
                       const isSky = item.is_hdmi;
+                      const showTitle = (custom.show_shortcut_titles !== false) && (item.show_title !== false);
                       return (
                         <button
                           key={item.id || idx}
@@ -469,14 +470,14 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                             willChange: 'transform, box-shadow',
                             transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.2s ease, background 0.2s ease',
                             borderRadius: 16,
-                            padding: '8px 12px',
+                            padding: showTitle ? '8px 12px' : '4px 8px',
                             minWidth: dockBtnWidth,
                             height: dockBtnHeight,
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: 6,
+                            gap: showTitle ? 6 : 0,
                             color: '#fff',
                             cursor: 'pointer',
                             outline: 'none',
@@ -484,7 +485,9 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                           }}
                         >
                           <div style={{
-                            height: dockIconHeight, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            height: showTitle ? dockIconHeight : '100%',
+                            width: showTitle ? 'auto' : '100%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
                             transform: isFocused ? 'scale(1.08)' : 'scale(1)',
                             transition: 'transform 0.25s ease'
                           }}>
@@ -494,18 +497,20 @@ export default function TVSimulator({ tv, layout, playlist, shortcuts, onCommand
                               iconUrl={item.icon_url}
                               isHdmi={isSky} 
                               isFocused={isFocused} 
-                              size={dockInnerSize}
+                              size={showTitle ? dockInnerSize : Math.round(dockBtnHeight * 0.65)}
                             />
                           </div>
-                          <span style={{ 
-                            fontSize: `${dockTextSize}px`, 
-                            fontWeight: isFocused ? 700 : 600, 
-                            whiteSpace: 'nowrap',
-                            color: isFocused ? '#ffffff' : 'rgba(255, 255, 255, 0.85)',
-                            letterSpacing: isFocused ? '0.01em' : 'normal'
-                          }}>
-                            {isSky ? hdmiLabel : item.name}
-                          </span>
+                          {showTitle && (
+                            <span style={{ 
+                              fontSize: `${dockTextSize}px`, 
+                              fontWeight: isFocused ? 700 : 600, 
+                              whiteSpace: 'nowrap',
+                              color: isFocused ? '#ffffff' : 'rgba(255, 255, 255, 0.85)',
+                              letterSpacing: isFocused ? '0.01em' : 'normal'
+                            }}>
+                              {isSky ? hdmiLabel : item.name}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
