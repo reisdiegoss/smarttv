@@ -238,6 +238,28 @@ class MainActivity : AppCompatActivity() {
         startHeartbeatLoop()
     }
 
+    /**
+     * Libera completamente o ExoPlayer, codecs de hardware de vídeo e foco de áudio
+     * para que aplicativos externos de streaming (Netflix, YouTube, Prime) tenham acesso
+     * imediato aos decodificadores da TV sem atraso e sem sobreposição de áudio.
+     */
+    private fun releasePlayerForExternalApp() {
+        try {
+            exoPlayer?.let { player ->
+                player.playWhenReady = false
+                player.stop()
+                player.clearMediaItems()
+                player.release()
+            }
+            exoPlayer = null
+            playerView.player = null
+            currentLoadedMediaUrls = emptyList()
+            Log.i(TAG, "ExoPlayer e decodificadores de hardware liberados para app externo.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao liberar player", e)
+        }
+    }
+
     private fun initExoPlayer() {
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -297,7 +319,11 @@ class MainActivity : AppCompatActivity() {
      */
     private fun resumeVideoPlayback() {
         if (layoutPairing.visibility == View.VISIBLE) return
-        val playlist = currentConfig?.playlist
+        val config = currentConfig ?: run {
+            loadConfigAndSetup()
+            return
+        }
+        val playlist = config.playlist
         if (playlist == null || playlist.items.isEmpty()) return
 
         playerView.visibility = View.VISIBLE
@@ -311,7 +337,7 @@ class MainActivity : AppCompatActivity() {
             Log.i(TAG, "ExoPlayer nulo no retorno, recriando...")
             initExoPlayer()
             currentLoadedMediaUrls = emptyList()
-            currentConfig?.let { setupPlaylist(it) }
+            setupPlaylist(config)
             return
         }
 
@@ -323,12 +349,13 @@ class MainActivity : AppCompatActivity() {
         if (hasError || playbackState == Player.STATE_IDLE || exoPlayer?.mediaItemCount == 0) {
             Log.i(TAG, "ExoPlayer em STATE_IDLE ou com erro. Recarregando itens da playlist...")
             currentLoadedMediaUrls = emptyList()
-            currentConfig?.let { setupPlaylist(it) }
+            setupPlaylist(config)
         } else {
             exoPlayer?.prepare()
             exoPlayer?.play()
         }
     }
+
 
     /**
      * Exibe a tela de Pareamento e Configuração (PIN ou Ajustes Locais)
@@ -614,43 +641,14 @@ class MainActivity : AppCompatActivity() {
             showPairingScreen()
         }
 
+        dialogView.findViewById<Button>(R.id.btnActionPrepareAdb)?.setOnClickListener {
+            dialog.dismiss()
+            showAdbSetupDialog()
+        }
+
         dialogView.findViewById<Button>(R.id.btnActionCleanApps)?.setOnClickListener {
             dialog.dismiss()
-            Toast.makeText(this, "Verificando dados e sessões de aplicativos...", Toast.LENGTH_SHORT).show()
-            lifecycleScope.launch(Dispatchers.IO) {
-                val appPackages = currentConfig?.shortcuts?.map { it.packageName } ?: emptyList()
-                val report = AppCleanupManager.clearGuestAppData(this@MainActivity, appPackages)
-                withContext(Dispatchers.Main) {
-                    if (report.remainingPackages.isEmpty()) {
-                        Toast.makeText(this@MainActivity, "🧹 Todos os aplicativos foram limpos com sucesso!", Toast.LENGTH_LONG).show()
-                        resumeVideoPlayback()
-                    } else {
-                        val remainingNames = report.remainingPackages.map { pkg ->
-                            currentConfig?.shortcuts?.firstOrNull { it.packageName == pkg }?.name ?: pkg
-                        }.joinToString(", ")
-
-                        AlertDialog.Builder(this@MainActivity)
-                            .setTitle("Limpeza de Dados e Contas")
-                            .setMessage("Aplicativos a limpar: $remainingNames.\n\nDeseja iniciar a limpeza automática assistida agora?")
-                            .setPositiveButton("Sim, Limpar Automaticamente") { _, _ ->
-                                Toast.makeText(this@MainActivity, "Iniciando limpeza assistida nos apps...", Toast.LENGTH_SHORT).show()
-                                AppCleanupManager.startAssistedClean(report.remainingPackages) {
-                                    runOnUiThread {
-                                        Toast.makeText(this@MainActivity, "🧹 Limpeza assistida finalizada!", Toast.LENGTH_LONG).show()
-                                        resumeVideoPlayback()
-                                    }
-                                }
-                            }
-                            .setNeutralButton("Abrir App Individual") { _, _ ->
-                                showManualAppCleanSelector(report.remainingPackages)
-                            }
-                            .setNegativeButton("Cancelar") { _, _ ->
-                                resumeVideoPlayback()
-                            }
-                            .show()
-                    }
-                }
-            }
+            showAdbCleanAppsDialog()
         }
 
         dialogView.findViewById<Button>(R.id.btnActionDismiss).setOnClickListener {
@@ -665,23 +663,114 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun showManualAppCleanSelector(packages: List<String>) {
-        val items = packages.map { pkg ->
-            val appName = currentConfig?.shortcuts?.firstOrNull { it.packageName == pkg }?.name ?: pkg
-            "Abrir tela de dados: $appName"
-        }.toTypedArray()
+    /**
+     * Passo 5 da Rotina do Técnico:
+     * Solicita ao servidor a preparação ADB da TV, orientando sobre confirmação na tela caso pendente.
+     */
+    private fun showAdbSetupDialog() {
+        val progressDialog = AlertDialog.Builder(this)
+            .setTitle("🛡️ Conectando ao Servidor ADB...")
+            .setMessage("Estabelecendo conexão remota com o servidor Fasano...\n\nCaso apareça a mensagem do sistema 'Permitir a depuração USB a partir deste computador?', marque a opção 'Sempre permitir' e selecione OK no controle remoto.")
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
 
-        AlertDialog.Builder(this)
-            .setTitle("Limpeza de Dados de Aplicativos")
-            .setItems(items) { _, which ->
-                val selectedPkg = packages[which]
-                AppCleanupManager.openAppDetailsSettings(this, selectedPkg)
+        val deviceId = SmartTVApp.instance.getTvDeviceId()
+        val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val res = api.requestAdbSetup(deviceId)
+                val status = res["status"] as? String ?: "unknown"
+                val message = res["message"] as? String ?: ""
+
+                withContext(Dispatchers.Main) {
+                    progressDialog.dismiss()
+                    if (status == "ready" || status == "connected") {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("✅ TV Pronta para Uso!")
+                            .setMessage("Conexão ADB autorizada e ativa com o servidor!\n\nA partir de agora, a TV está 100% pronta para receber comandos automáticos de limpeza nos Check-ins e Check-outs.")
+                            .setPositiveButton("Concluir") { _, _ -> resumeVideoPlayback() }
+                            .show()
+                    } else if (status == "unauthorized") {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("⚠️ Autorização Necessária na Tela")
+                            .setMessage("O servidor conectou, mas a TV aguarda autorização.\n\nObserve se apareceu uma caixa de diálogo do Android na tela, marque 'Sempre permitir a partir deste computador' e clique em OK.\n\nDepois clique em 'Tentar Novamente'.")
+                            .setPositiveButton("Tentar Novamente") { _, _ -> showAdbSetupDialog() }
+                            .setNegativeButton("Fechar") { _, _ -> resumeVideoPlayback() }
+                            .show()
+                    } else {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("⚠️ Atenção na Conexão ADB")
+                            .setMessage(message.ifBlank { "Não foi possível conectar ao servidor via ADB. Verifique se a Depuração USB está ATIVA nas opções de desenvolvedor da TV." })
+                            .setPositiveButton("OK") { _, _ -> resumeVideoPlayback() }
+                            .show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    progressDialog.dismiss()
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("❌ Erro de Conexão")
+                        .setMessage("Falha ao comunicar com o servidor: ${e.localizedMessage ?: e.message}")
+                        .setPositiveButton("OK") { _, _ -> resumeVideoPlayback() }
+                        .show()
+                }
             }
-            .setNegativeButton("Voltar") { _, _ ->
-                resumeVideoPlayback()
-            }
-            .show()
+        }
     }
+
+    /**
+     * Limpeza manual de aplicativos acionada pelo menu da TV:
+     * Solicita que o servidor execute `pm clear` via ADB e aguarda confirmação para exibir ao usuário.
+     */
+    private fun showAdbCleanAppsDialog() {
+        val progressDialog = AlertDialog.Builder(this)
+            .setTitle("🧹 Limpando Aplicativos...")
+            .setMessage("Solicitando ao servidor a limpeza de dados e contas (YouTube, Netflix, Prime Video, etc.) via ADB. Aguarde...")
+            .setCancelable(false)
+            .create()
+        progressDialog.show()
+
+        val deviceId = SmartTVApp.instance.getTvDeviceId()
+        val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val res = api.requestAdbClearApps(deviceId)
+                val status = res["status"] as? String ?: "unknown"
+                val clearedCount = (res["cleared_count"] as? Number)?.toInt() ?: 0
+                val message = res["message"] as? String ?: ""
+
+                withContext(Dispatchers.Main) {
+                    progressDialog.dismiss()
+                    if (status == "completed" || clearedCount > 0) {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("🧹 Limpeza Concluída com Sucesso!")
+                            .setMessage("O servidor executou a limpeza via ADB com sucesso!\n\nForam limpos dados e sessões de $clearedCount aplicativo(s) (YouTube, Netflix, Prime Video, etc.).\n\nNenhuma conta de hóspede permaneceu conectada.")
+                            .setPositiveButton("OK") { _, _ -> resumeVideoPlayback() }
+                            .show()
+                    } else {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("⚠️ Resultado da Limpeza")
+                            .setMessage(message.ifBlank { "O servidor não conseguiu limpar os apps. Verifique se a TV está conectada via ADB." })
+                            .setPositiveButton("OK") { _, _ -> resumeVideoPlayback() }
+                            .show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    progressDialog.dismiss()
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("❌ Falha na Limpeza")
+                        .setMessage("Erro ao solicitar limpeza ao servidor: ${e.localizedMessage ?: e.message}")
+                        .setPositiveButton("OK") { _, _ -> resumeVideoPlayback() }
+                        .show()
+                }
+            }
+        }
+    }
+
 
     /**
      * Baixa a última versão do APK diretamente do servidor HTTP e inicia o instalador do Android TV
@@ -1597,7 +1686,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             btnSky.setOnClickListener {
-                exoPlayer?.pause()
+                releasePlayerForExternalApp()
                 hasLaunchedExternalApp = true
                 HdmiInputManager.switchToHdmiInput(this, config.hdmi.inputId)
             }
@@ -1664,7 +1753,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             btnApp.setOnClickListener {
-                exoPlayer?.pause()
+                releasePlayerForExternalApp()
                 hasLaunchedExternalApp = true
                 AppLauncherManager.launchApp(this, sc.packageName)
             }
@@ -1716,7 +1805,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             btnSky.setOnClickListener {
-                exoPlayer?.pause()
+                releasePlayerForExternalApp()
                 hasLaunchedExternalApp = true
                 HdmiInputManager.switchToHdmiInput(this, config.hdmi.inputId)
             }
@@ -1764,13 +1853,14 @@ class MainActivity : AppCompatActivity() {
             }
 
             btnApp.setOnClickListener {
-                exoPlayer?.pause()
+                releasePlayerForExternalApp()
                 hasLaunchedExternalApp = true
                 AppLauncherManager.launchApp(this, sc.packageName)
             }
             btnApp.isFocusable = true
             containerSidebarShortcuts.addView(btnApp)
         }
+
     }
 
     private fun resetAutoHideTimer() {
@@ -1945,7 +2035,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        exoPlayer?.pause()
+        // Libera totalmente decodificadores de hardware e foco de áudio quando o app sai da tela
+        releasePlayerForExternalApp()
     }
 
     override fun onResume() {
@@ -2111,7 +2202,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         stopPairPolling()
-        exoPlayer?.release()
-        exoPlayer = null
+        releasePlayerForExternalApp()
+        handler.removeCallbacksAndMessages(null)
     }
 }

@@ -149,3 +149,39 @@ class TVAdbManager:
             "failed_packages": failed,
             "message": f"Limpeza concluída via ADB pelo Servidor! {len(cleared)} aplicativo(s) tiveram dados e contas apagados com sucesso."
         }
+
+    @staticmethod
+    async def setup_and_prepare_tv(ip: str) -> Dict[str, Any]:
+        """
+        Executa a rotina do técnico (Passo 5):
+        Conecta ADB, verifica autorização na tela da TV e prepara a TV para comandos automáticos.
+        """
+        conn = await TVAdbManager.connect_tv(ip)
+        if conn.get("status") == "unauthorized":
+            return {
+                "status": "unauthorized",
+                "ip": ip,
+                "message": "A TV recebeu a conexão, mas aguarda confirmação na tela! Olhe para a TV, marque 'Sempre permitir a partir deste computador' e clique em OK."
+            }
+        if conn.get("status") != "connected":
+            return conn
+
+        target = f"{ip}:5555"
+        # Testa comando de eco
+        test_res = await asyncio.to_thread(
+            run_adb_command,
+            ["-s", target, "shell", "echo", "READY"],
+            5
+        )
+        if "READY" in test_res.get("stdout", ""):
+            return {
+                "status": "ready",
+                "ip": ip,
+                "message": f"TV {ip} conectada e autorizada com sucesso via ADB! Pronta para limpeza automática."
+            }
+        else:
+            return {
+                "status": "warning",
+                "ip": ip,
+                "message": f"TV conectada, mas resposta pendente: {test_res.get('stderr') or 'Aguardando confirmação na TV'}"
+            }

@@ -359,6 +359,17 @@ async def manual_sync_uh(payload: ManualPMSSyncRequest, request: Request, db: As
     await db.commit()
     await db.refresh(target_tv)
 
+    if target_tv.ip_address:
+        import asyncio
+        asyncio.create_task(
+            fias_service._trigger_remote_cleanup(
+                target_tv.id,
+                target_tv.ip_address,
+                clean_uh,
+                f"PMS Manual {action_label}"
+            )
+        )
+
     return {
         "status": "ok",
         "message": f"UH {clean_uh} atualizada com sucesso",

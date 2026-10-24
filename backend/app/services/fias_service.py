@@ -662,6 +662,18 @@ class FIASService:
 
                         await session.commit()
 
+                        # Dispara limpeza automática remota via ADB no Servidor
+                        # (Checkout limpa dados do hóspede anterior; Checkin limpa por segurança para o novo hóspede)
+                        if target_tv.ip_address:
+                            asyncio.create_task(
+                                self._trigger_remote_cleanup(
+                                    target_tv.id,
+                                    target_tv.ip_address,
+                                    clean_uh,
+                                    "Check-in" if is_checkin else "Check-out"
+                                )
+                            )
+
                         self.log_timeline(
                             "DIFF", "SUCCESS", f"Diff UH {clean_uh}: {clean_old or 'Vago'} ➔ {clean_new or 'Vago'}",
                             f"PMS aplicou atualização: {diff_detail}.",
@@ -727,4 +739,39 @@ class FIASService:
                     uh=clean_uh
                 )
 
+    async def _trigger_remote_cleanup(self, tv_id: int, ip_address: Optional[str], uh: str, reason: str):
+        """
+        Dispara a limpeza remota de aplicativos via ADB pelo servidor e registra auditoria na TV.
+        Executado no Check-out e Check-in.
+        """
+        if not ip_address:
+            logger.info(f"Limpeza ADB ignorada para UH {uh} (TV {tv_id}): Sem IP detectado.")
+            return
+
+        try:
+            from app.services.adb_service import TVAdbManager
+            logger.info(f"Iniciando limpeza remota ADB para UH {uh} ({ip_address}) devido a {reason}...")
+            res = await TVAdbManager.clear_tv_apps(ip_address)
+            cleared_count = res.get("cleared_count", 0)
+            cleared_pkgs = res.get("cleared_packages", [])
+
+            async with AsyncSessionLocal() as session:
+                log = DeviceLog(
+                    tv_id=tv_id,
+                    event_type="APP_CLEANUP_ADB",
+                    message=f"Limpeza remota ADB ({reason}): {cleared_count} app(s) limpos ({', '.join(cleared_pkgs) if cleared_pkgs else 'nenhum'}). Status: {res.get('status')}."
+                )
+                session.add(log)
+                await session.commit()
+
+            self.log_timeline(
+                "GUEST", "SUCCESS" if res.get("status") == "completed" else "WARNING",
+                f"Limpeza ADB {reason}: UH {uh}",
+                f"{cleared_count} app(s) limpos com sucesso via ADB no dispositivo {ip_address}.",
+                uh=uh
+            )
+        except Exception as e:
+            logger.error(f"Erro na limpeza ADB da UH {uh} ({reason}): {e}")
+
 fias_service = FIASService()
+

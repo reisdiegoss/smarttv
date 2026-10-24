@@ -4,7 +4,7 @@ import {
   Settings, CheckCircle2, AlertCircle, Wifi, Play, Edit, 
   Trash2, QrCode, HardDrive, Eye, ExternalLink, Cpu,
   Shield, Download, LogOut, User as UserIcon, Send,
-  FolderTree, Building2, ChevronDown
+  FolderTree, Building2, ChevronDown, FileText
 } from 'lucide-react';
 
 import TVSimulator from './components/TVSimulator';
@@ -18,6 +18,7 @@ import AuditTrailView from './components/AuditTrailView';
 import GroupsView from './components/GroupsView';
 import PMSIntegrationView from './components/PMSIntegrationView';
 import ShortcutsView from './components/ShortcutsView';
+import DeviceLogsModal from './components/DeviceLogsModal';
 
 export default function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('smarttv_token'));
@@ -58,6 +59,7 @@ export default function App() {
   const [editingLayout, setEditingLayout] = useState(null);
   const [isApkMenuOpen, setIsApkMenuOpen] = useState(false);
   const apkMenuRef = useRef(null);
+  const [deviceLogsTv, setDeviceLogsTv] = useState(null);
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
@@ -478,8 +480,8 @@ export default function App() {
             {/* Split Button de Download Direto + Opções */}
             <div ref={apkMenuRef} style={{ position: 'relative', display: 'inline-flex' }}>
               <a
-                href="/fasano-smarttv-v1.1.2.apk"
-                download="fasano-smarttv-v1.1.2.apk"
+                href="/fasano-smarttv-v1.1.3.apk"
+                download="fasano-smarttv-v1.1.3.apk"
                 className="btn btn-secondary"
                 style={{
                   display: 'inline-flex',
@@ -494,9 +496,9 @@ export default function App() {
                   borderTopRightRadius: 0,
                   borderBottomRightRadius: 0
                 }}
-                title="Download direto do APK v1.1.2 (fasano-smarttv-v1.1.2.apk)"
+                title="Download direto do APK v1.1.3 (fasano-smarttv-v1.1.3.apk)"
               >
-                <Download size={16} /> Baixar APK v1.1.2
+                <Download size={16} /> Baixar APK v1.1.3
               </a>
 
               <button
@@ -542,8 +544,8 @@ export default function App() {
                   </div>
 
                   <a
-                    href="/fasano-smarttv-v1.1.2.apk"
-                    download="fasano-smarttv-v1.1.2.apk"
+                    href="/fasano-smarttv-v1.1.3.apk"
+                    download="fasano-smarttv-v1.1.3.apk"
                     onClick={() => setIsApkMenuOpen(false)}
                     style={{
                       display: 'flex',
@@ -560,8 +562,8 @@ export default function App() {
                   >
                     <Download size={16} color="#38bdf8" />
                     <div>
-                      <div>Baixar Versão Oficial (v1.1.2)</div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>fasano-smarttv-v1.1.2.apk</div>
+                      <div>Baixar Versão Oficial (v1.1.3)</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>fasano-smarttv-v1.1.3.apk</div>
                     </div>
                   </a>
 
@@ -1094,6 +1096,14 @@ export default function App() {
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button 
                         className="btn btn-secondary btn-sm"
+                        onClick={() => setDeviceLogsTv(tv)}
+                        title="Ver logs desta TV"
+                        style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <FileText size={14} /> Logs
+                      </button>
+                      <button 
+                        className="btn btn-secondary btn-sm"
                         onClick={() => { setEditingTv(tv); setIsTvModalOpen(true); }}
                       >
                         <Edit size={14} /> Configurar
@@ -1401,6 +1411,14 @@ export default function App() {
         onSave={handleSaveLayout}
         layout={editingLayout}
       />
+
+      {/* DEVICE LOGS MODAL (per-TV) */}
+      {deviceLogsTv && (
+        <DeviceLogsModal
+          tv={deviceLogsTv}
+          onClose={() => setDeviceLogsTv(null)}
+        />
+      )}
 
     </div>
   );

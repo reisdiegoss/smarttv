@@ -962,12 +962,14 @@ async def adb_prepare_endpoint(tv_id: int, db: AsyncSession = Depends(get_db)):
     return res
 
 @router.post("/{tv_id}/adb-clear-apps")
-async def adb_clear_apps_endpoint(tv_id: int, db: AsyncSession = Depends(get_db)):
+async def adb_clear_apps_endpoint(tv_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     """Limpa dados e contas de todos os apps (YouTube, Netflix, etc.) via ADB pelo servidor"""
     tv = await db.get(SmartTV, tv_id)
     if not tv:
         raise HTTPException(status_code=404, detail="TV não encontrada")
-    if not tv.ip_address:
+    
+    target_ip = tv.ip_address or (request.client.host if request.client else None)
+    if not target_ip:
         raise HTTPException(status_code=400, detail="A TV ainda não possui IP detectado na rede.")
     
     # Extrai pacotes configurados na TV
@@ -978,15 +980,149 @@ async def adb_clear_apps_endpoint(tv_id: int, db: AsyncSession = Depends(get_db)
             if sc.package_name and not sc.is_hdmi:
                 extra_pkgs.append(sc.package_name)
 
-    res = await TVAdbManager.clear_tv_apps(tv.ip_address, extra_pkgs)
+    res = await TVAdbManager.clear_tv_apps(target_ip, extra_pkgs)
     
-    if res.get("status") == "completed":
+    cleared_count = res.get("cleared_count", 0)
+    cleared_pkgs = res.get("cleared_packages", [])
+    log = DeviceLog(
+        tv_id=tv.id,
+        event_type="APP_CLEANUP_ADB",
+        message=f"Limpeza remota ADB (Painel Web): {cleared_count} app(s) limpos ({', '.join(cleared_pkgs) if cleared_pkgs else 'nenhum'}). Status: {res.get('status')}."
+    )
+    db.add(log)
+    await db.commit()
+    return res
+
+@router.post("/by-device/{device_id}/adb-setup")
+async def adb_setup_by_device(device_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Acionado pelo técnico no menu admin da TV (Passo 5 da rotina de instalação):
+    Conecta o servidor via ADB, checa autorização na tela da TV e prepara a TV para comandos automáticos.
+    """
+    res_tv = await db.execute(select(SmartTV).where(SmartTV.device_id == device_id))
+    tv = res_tv.scalar_one_or_none()
+    
+    req_ip = request.client.host if request.client else None
+    if req_ip and req_ip in ("127.0.0.1", "localhost", "::1"):
+        req_ip = None
+        
+    target_ip = (tv.ip_address if tv else None) or req_ip
+    if not target_ip:
+        raise HTTPException(status_code=400, detail="Não foi possível determinar o IP da TV para conexão ADB.")
+
+    if tv and req_ip and tv.ip_address != req_ip:
+        tv.ip_address = req_ip
+        await db.commit()
+
+    res = await TVAdbManager.setup_and_prepare_tv(target_ip)
+
+    if tv:
         log = DeviceLog(
             tv_id=tv.id,
-            event_type="APP_CLEANUP",
-            message=f"Limpeza remota ADB concluída pelo servidor: {res.get('cleared_count')} aplicativo(s) limpos com sucesso!"
+            event_type="ADB_SETUP",
+            message=f"Configuração inicial ADB solicitada pelo Menu da TV ({target_ip}): {res.get('message')}"
         )
         db.add(log)
         await db.commit()
+
     return res
+
+@router.post("/by-device/{device_id}/adb-clear-apps")
+async def adb_clear_apps_by_device(device_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Acionado pelo menu da TV: solicita ao servidor a limpeza de dados e contas dos apps via ADB.
+    """
+    res_tv = await db.execute(select(SmartTV).where(SmartTV.device_id == device_id))
+    tv = res_tv.scalar_one_or_none()
+
+    req_ip = request.client.host if request.client else None
+    if req_ip and req_ip in ("127.0.0.1", "localhost", "::1"):
+        req_ip = None
+
+    target_ip = (tv.ip_address if tv else None) or req_ip
+    if not target_ip:
+        raise HTTPException(status_code=400, detail="A TV não possui IP registrado na rede.")
+
+    extra_pkgs = []
+    if tv and tv.selected_shortcuts:
+        sc_res = await db.execute(select(AppShortcut).where(AppShortcut.id.in_(tv.selected_shortcuts)))
+        for sc in sc_res.scalars().all():
+            if sc.package_name and not sc.is_hdmi:
+                extra_pkgs.append(sc.package_name)
+
+    res = await TVAdbManager.clear_tv_apps(target_ip, extra_pkgs)
+
+    if tv:
+        cleared_count = res.get("cleared_count", 0)
+        cleared_pkgs = res.get("cleared_packages", [])
+        log = DeviceLog(
+            tv_id=tv.id,
+            event_type="APP_CLEANUP_ADB",
+            message=f"Limpeza de apps solicitada pelo Menu da TV via Servidor: {cleared_count} app(s) limpos ({', '.join(cleared_pkgs) if cleared_pkgs else 'nenhum'}). Status: {res.get('status')}."
+        )
+        db.add(log)
+        await db.commit()
+
+    return res
+
+
+# ──── LOGS INDIVIDUAIS POR TV ────────────────────────────────────────────────
+@router.get("/{tv_id}/logs")
+async def get_tv_logs(
+    tv_id: int,
+    event_type: Optional[str] = None,
+    limit: int = 200,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna os logs (device_logs) de uma TV específica, ordenados do mais recente ao mais antigo."""
+    tv = await db.get(SmartTV, tv_id)
+    if not tv:
+        raise HTTPException(status_code=404, detail="TV não encontrada")
+
+    query = select(DeviceLog).where(DeviceLog.tv_id == tv_id)
+    if event_type and event_type != "ALL":
+        query = query.where(DeviceLog.event_type == event_type)
+    query = query.order_by(DeviceLog.created_at.desc()).limit(limit)
+
+    result = await db.execute(query)
+    logs = result.scalars().all()
+
+    return [
+        {
+            "id": log.id,
+            "tv_id": log.tv_id,
+            "event_type": log.event_type,
+            "message": log.message,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        }
+        for log in logs
+    ]
+
+
+# ──── CONTAGEM DE EVENT TYPES POR TV ─────────────────────────────────────────
+@router.get("/{tv_id}/logs/summary")
+async def get_tv_logs_summary(
+    tv_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna um resumo dos tipos de eventos registrados para a TV."""
+    from sqlalchemy import func
+
+    tv = await db.get(SmartTV, tv_id)
+    if not tv:
+        raise HTTPException(status_code=404, detail="TV não encontrada")
+
+    result = await db.execute(
+        select(DeviceLog.event_type, func.count(DeviceLog.id).label("count"))
+        .where(DeviceLog.tv_id == tv_id)
+        .group_by(DeviceLog.event_type)
+    )
+    rows = result.all()
+
+    total = sum(r.count for r in rows)
+    return {
+        "tv_id": tv_id,
+        "total_logs": total,
+        "by_type": {r.event_type: r.count for r in rows},
+    }
 

@@ -99,7 +99,21 @@
             android:textSize="14sp"
             android:textStyle="bold" />
 
-        <!-- 6. Limpeza Manual de Cache & Dados dos Apps -->
+        <!-- 6. Preparar TV para Limpeza Automática (ADB Técnico - Passo 5) -->
+        <Button
+            android:id="@+id/btnActionPrepareAdb"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_chip_button"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:text="🛡️ Preparar TV para Limpeza (Autorizar ADB Servidor)"
+            android:textColor="#38BDF8"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- 7. Limpeza de Dados & Contas dos Apps via Servidor -->
         <Button
             android:id="@+id/btnActionCleanApps"
             android:layout_width="match_parent"
@@ -108,7 +122,7 @@
             android:background="@drawable/bg_chip_button"
             android:gravity="center_vertical"
             android:paddingHorizontal="20dp"
-            android:text="🧹 Limpar Dados &amp; Cache de Apps Agora (Deslogar Hóspede)"
+            android:text="🧹 Limpar Dados &amp; Contas de Apps Agora (Via Servidor)"
             android:textColor="#C084FC"
             android:textSize="14sp"
             android:textStyle="bold" />
