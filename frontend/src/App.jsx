@@ -1364,6 +1364,7 @@ export default function App() {
             tvs={tvs}
             groups={groups}
             onRefresh={loadData}
+            onViewLogs={(tv) => setDeviceLogsTv(tv)}
           />
         )}
 

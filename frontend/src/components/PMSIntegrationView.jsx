@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Copy, Check, Info, Zap
 } from 'lucide-react';
 
-export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, fetchHeaders }) {
+export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, fetchHeaders, onViewLogs }) {
   const [pmsStatus, setPmsStatus] = useState(null);
   const [testingConnection, setTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState(null);
@@ -1610,21 +1610,32 @@ export default function PMSIntegrationView({ tvs = [], groups = [], onRefresh, f
 
                       {/* Ação Rápida */}
                       <td style={{ padding: '12px', textAlign: 'right' }}>
-                        {isUh && currentGuest && tvUh !== '-' && (
+                        <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
                           <button 
+                            type="button"
                             className="btn btn-secondary" 
-                            style={{ fontSize: '0.75rem', padding: '4px 10px', color: '#f59e0b' }}
-                            onClick={() => handleQuickCheckout(tvUh)}
-                            title="Desvincular hóspede (Check-out)"
+                            style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            onClick={() => onViewLogs && onViewLogs(tv)}
+                            title={`Ver histórico e logs da UH ${tvUh}`}
                           >
-                            Check-Out
+                            <FileText size={13} /> Logs
                           </button>
-                        )}
-                        {!isUh && (
-                          <span style={{ fontSize: '0.72rem', color: '#a855f7', fontWeight: 600 }}>
-                            Fixa (Sem PMS)
-                          </span>
-                        )}
+                          {isUh && currentGuest && tvUh !== '-' && (
+                            <button 
+                              className="btn btn-secondary" 
+                              style={{ fontSize: '0.75rem', padding: '4px 10px', color: '#f59e0b' }}
+                              onClick={() => handleQuickCheckout(tvUh)}
+                              title="Desvincular hóspede (Check-out)"
+                            >
+                              Check-Out
+                            </button>
+                          )}
+                          {!isUh && (
+                            <span style={{ fontSize: '0.72rem', color: '#a855f7', fontWeight: 600 }}>
+                              Fixa (Sem PMS)
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
