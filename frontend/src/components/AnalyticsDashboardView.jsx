@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  BarChart3, Clock, Tv, PlaySquare, TrendingUp, Sparkles, 
+  BarChart3, Clock, Tv, PlaySquare, TrendingUp, 
   RefreshCw, CheckCircle2, AlertCircle, Calendar, Filter, 
   ExternalLink, Layers, Award, Users, Monitor, Zap, Flame,
   Search, ShieldCheck, ChevronRight, Eye
@@ -11,7 +11,6 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
   const [selectedUh, setSelectedUh] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [activeSubTab, setActiveSubTab] = useState('rooms'); // 'rooms', 'stays'
@@ -52,24 +51,6 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
   useEffect(() => {
     fetchAnalytics();
   }, [period, selectedUh]);
-
-  // Seed demo data for testing / initial preview
-  const handleSeedDemoData = async () => {
-    if (!window.confirm('Deseja popular dados analíticos de demonstração para os últimos 7 dias?')) return;
-    setSeeding(true);
-    try {
-      const res = await fetch('/api/analytics/seed-demo-data', { method: 'POST' });
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.detail || 'Falha ao gerar dados demo');
-      }
-      await fetchAnalytics(true);
-    } catch (err) {
-      alert(`Erro: ${err.message}`);
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   // Safe KPI variables
   const totalScreenHours = safeNum(data?.kpis?.total_screen_hours ?? data?.kpis?.total_screen_on_hours);
@@ -192,25 +173,6 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
           >
             <RefreshCw size={14} className={refreshing ? 'spinning' : ''} />
             <span>Atualizar</span>
-          </button>
-
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={handleSeedDemoData}
-            disabled={seeding || loading}
-            style={{
-              padding: '7px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'rgba(245, 158, 11, 0.12)',
-              borderColor: 'rgba(245, 158, 11, 0.3)',
-              color: '#fbbf24'
-            }}
-            title="Popular dados simulados para teste visual"
-          >
-            <Sparkles size={14} />
-            <span>{seeding ? 'Populando...' : 'Popular Dados Demo'}</span>
           </button>
         </div>
       </div>

@@ -11,8 +11,8 @@ android {
         applicationId = "com.smarttv.launcher"
         minSdk = 21 // Suporta desde Android 5.0 até Android 14+ (evita erro de análise de pacote)
         targetSdk = 34
-        versionCode = 15
-        versionName = "1.1.4"
+        versionCode = 16
+        versionName = "1.1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

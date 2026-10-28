@@ -317,6 +317,16 @@ class MainActivity : AppCompatActivity() {
         playerView.useController = false
     }
 
+    private var pendingResumePlaybackRunnable: Runnable? = null
+
+    private fun scheduleResumeVideoPlayback(delayMs: Long = 450L) {
+        pendingResumePlaybackRunnable?.let { handler.removeCallbacks(it) }
+        pendingResumePlaybackRunnable = Runnable {
+            resumeVideoPlayback()
+        }
+        handler.postDelayed(pendingResumePlaybackRunnable!!, delayMs)
+    }
+
     /**
      * Retoma a reprodução do vídeo corporativo de forma segura e resiliente após retorno
      * de aplicativos de streaming (YouTube, Netflix) ou HDMI.
@@ -328,7 +338,10 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val playlist = config.playlist
-        if (playlist == null || playlist.items.isEmpty()) return
+        if (playlist == null || playlist.items.isEmpty()) {
+            playerView.visibility = View.GONE
+            return
+        }
 
         playerView.visibility = View.VISIBLE
         try {
@@ -338,10 +351,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (exoPlayer == null) {
-            Log.i(TAG, "ExoPlayer nulo no retorno, recriando...")
+            Log.i(TAG, "ExoPlayer nulo no retorno, recriando com segurança...")
             initExoPlayer()
             currentLoadedMediaUrls = emptyList()
             setupPlaylist(config)
+            return
+        }
+
+        // Se já está reproduzindo normalmente, não interrompe nem recria codecs
+        if (exoPlayer?.isPlaying == true) {
             return
         }
 
@@ -355,8 +373,14 @@ class MainActivity : AppCompatActivity() {
             currentLoadedMediaUrls = emptyList()
             setupPlaylist(config)
         } else {
-            exoPlayer?.prepare()
-            exoPlayer?.play()
+            try {
+                exoPlayer?.prepare()
+                exoPlayer?.play()
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao preparar ExoPlayer na retoma", e)
+                initExoPlayer()
+                setupPlaylist(config)
+            }
         }
     }
 
@@ -395,7 +419,7 @@ class MainActivity : AppCompatActivity() {
     private fun showLauncherScreen() {
         stopPairPolling()
         layoutPairing.visibility = View.GONE
-        resumeVideoPlayback()
+        scheduleResumeVideoPlayback(delayMs = 250L)
 
         currentConfig?.let {
             applyLayout(it)
@@ -404,7 +428,7 @@ class MainActivity : AppCompatActivity() {
             layoutHeader.visibility = View.VISIBLE
         }
 
-        resetAutoHideTimer()
+        showDockAndEnsureFocus()
     }
 
     private fun togglePairingOverlay() {
@@ -1904,26 +1928,47 @@ class MainActivity : AppCompatActivity() {
         handler.postDelayed(autoHideRunnable!!, timeoutSeconds)
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // Se a dock estava oculta, qualquer clique no controle remoto a restaura imediatamente
-        if (!isDockVisible) {
+    private fun showDockAndEnsureFocus() {
+        if (!isDockVisible || layoutDock.visibility != View.VISIBLE) {
             layoutDock.visibility = View.VISIBLE
             isDockVisible = true
         }
+        if (containerShortcuts.childCount > 0) {
+            var hasFocus = false
+            for (i in 0 until containerShortcuts.childCount) {
+                if (containerShortcuts.getChildAt(i).hasFocus()) {
+                    hasFocus = true
+                    break
+                }
+            }
+            if (!hasFocus) {
+                containerShortcuts.getChildAt(0).requestFocus()
+            }
+        }
         resetAutoHideTimer()
+    }
 
-        // Intercepta botão HOME (3) ou APP_SWITCH (187) no controle da TV
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Ignora teclas de sistema para não interferir no controle de volume e botão Power
+        if (event.keyCode == KeyEvent.KEYCODE_POWER || 
+            event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || 
+            event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || 
+            event.keyCode == KeyEvent.KEYCODE_VOLUME_MUTE) {
+            return super.dispatchKeyEvent(event)
+        }
+
+        // Se a dock estava oculta, qualquer tecla do controle a restaura e foca o botão ativo
+        if (!isDockVisible) {
+            showDockAndEnsureFocus()
+        } else {
+            resetAutoHideTimer()
+        }
+
+        // Tecla HOME ou APP_SWITCH: aciona detector de código secreto (Home 3x)
         if (event.keyCode == KeyEvent.KEYCODE_HOME || event.keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
             if (event.action == KeyEvent.ACTION_UP) {
-                if (hasLaunchedExternalApp) {
-                    hasLaunchedExternalApp = false
-                } else {
-                    if (SmartTVApp.instance.isPaired() && layoutPairing.visibility != View.VISIBLE) {
-                        promptAdminPinDialog()
-                    } else if (!SmartTVApp.instance.isPaired()) {
-                        togglePairingOverlay()
-                    }
-                }
+                handleHomeSecretPress()
+                showDockAndEnsureFocus()
             }
             return true
         }
@@ -1938,11 +1983,8 @@ class MainActivity : AppCompatActivity() {
             }
             return
         }
-        if (SmartTVApp.instance.isPaired()) {
-            promptAdminPinDialog()
-        } else {
-            togglePairingOverlay()
-        }
+        // Na tela inicial do Launcher, volta o foco para a dock e nunca pede senha
+        showDockAndEnsureFocus()
     }
 
     /**
@@ -1982,13 +2024,15 @@ class MainActivity : AppCompatActivity() {
                 }
                 return true
             }
-            // Na tela inicial do Launcher, não faz nada e nunca pede senha
+            // Na tela inicial do Launcher, restaura a dock e o foco
+            showDockAndEnsureFocus()
             return true
         }
 
         // Tecla HOME ou APP_SWITCH: aciona o detector do código secreto (Home 3x seguidas)
         if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
             handleHomeSecretPress()
+            showDockAndEnsureFocus()
             return true
         }
 
@@ -2019,6 +2063,7 @@ class MainActivity : AppCompatActivity() {
 
         if (isHomePressed) {
             handleHomeSecretPress()
+            showDockAndEnsureFocus()
         } else if (isLegacyTriggerPin) {
             if (SmartTVApp.instance.isPaired() && layoutPairing.visibility != View.VISIBLE) {
                 promptAdminPinDialog()
@@ -2028,7 +2073,6 @@ class MainActivity : AppCompatActivity() {
         if (hasLaunchedExternalApp) {
             hasLaunchedExternalApp = false
         }
-        resumeVideoPlayback()
     }
 
     override fun onPause() {
@@ -2052,7 +2096,12 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         isLauncherResumed = true
         com.smarttv.launcher.service.LauncherAccessibilityService.isExitingAuthorized = false
-        resumeVideoPlayback()
+        showDockAndEnsureFocus()
+
+        // Dá uma folga de 450ms para que o hardware de decodificação HDMI da TV seja totalmente liberado
+        // antes do ExoPlayer tentar recriar os codecs de vídeo. Evita congelamento de tela e travamento de hardware da TV.
+        scheduleResumeVideoPlayback(delayMs = 450L)
+
         if (hasLaunchedExternalApp) {
             handler.postDelayed({ hasLaunchedExternalApp = false }, 1000)
         }

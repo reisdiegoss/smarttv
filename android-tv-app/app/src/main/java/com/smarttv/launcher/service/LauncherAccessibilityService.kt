@@ -137,6 +137,14 @@ class LauncherAccessibilityService : AccessibilityService() {
     override fun onKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
 
+        // NUNCA intercepta ou bloqueia teclas críticas de hardware do controle (Power e Volume)
+        if (keyCode == KeyEvent.KEYCODE_POWER || 
+            keyCode == KeyEvent.KEYCODE_VOLUME_UP || 
+            keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || 
+            keyCode == KeyEvent.KEYCODE_VOLUME_MUTE) {
+            return super.onKeyEvent(event)
+        }
+
         if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
             if (isExitingAuthorized) {
                 return super.onKeyEvent(event)
@@ -206,12 +214,11 @@ class LauncherAccessibilityService : AccessibilityService() {
             instance?.bringLauncherToFront()
         }
 
-        // Lançadores nativos que DEVEM ser interceptados (com.android.tv.settings REMOVIDO para permitir ajustes!)
+        // Lançadores nativos que DEVEM ser interceptados (com.android.tv.settings e tvplayer NÃO devem ser interceptados!)
         val STOCK_LAUNCHER_PACKAGES = setOf(
             "com.google.android.apps.tv.launcherx",
             "com.google.android.tvlauncher",
             "com.google.android.leanbacklauncher",
-            "com.tcl.tvplayer",
             "com.tcl.launcher"
         )
     }

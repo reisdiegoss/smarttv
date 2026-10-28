@@ -553,8 +553,8 @@ export default function App() {
                   </div>
 
                   <a
-                    href="/fasano-smarttv-v1.1.3.apk"
-                    download="fasano-smarttv-v1.1.3.apk"
+                    href="/fasano-smarttv-v1.1.5.apk"
+                    download="fasano-smarttv-v1.1.5.apk"
                     onClick={() => setIsApkMenuOpen(false)}
                     style={{
                       display: 'flex',
@@ -571,8 +571,8 @@ export default function App() {
                   >
                     <Download size={16} color="#38bdf8" />
                     <div>
-                      <div>Baixar Versão Oficial (v1.1.4)</div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>fasano-smarttv-v1.1.4.apk</div>
+                      <div>Baixar Versão Oficial (v1.1.5)</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>fasano-smarttv-v1.1.5.apk</div>
                     </div>
                   </a>
 
