@@ -17,6 +17,12 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
   const [activeSubTab, setActiveSubTab] = useState('rooms'); // 'rooms', 'stays'
   const [searchFilter, setSearchFilter] = useState('');
 
+  // Safe number helper
+  const safeNum = (v, fallback = 0) => {
+    if (v === null || v === undefined || isNaN(Number(v))) return fallback;
+    return Number(v);
+  };
+
   // Fetch analytics overview
   const fetchAnalytics = async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
@@ -65,29 +71,18 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
     }
   };
 
-  // Format seconds into "Xh Ym"
-  const formatTime = (seconds = 0) => {
-    if (!seconds || seconds <= 0) return '0m';
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    if (hrs === 0) return `${mins}m`;
-    if (mins === 0) return `${hrs}h`;
-    return `${hrs}h ${mins}m`;
-  };
-
-  const kpis = data?.kpis || {
-    total_screen_on_hours: 0,
-    total_launcher_hours: 0,
-    total_external_app_hours: 0,
-    total_app_clicks: 0,
-    active_tvs_count: 0,
-    most_popular_app: null,
-    most_active_room: null
-  };
+  // Safe KPI variables
+  const totalScreenHours = safeNum(data?.kpis?.total_screen_hours ?? data?.kpis?.total_screen_on_hours);
+  const totalLauncherHours = safeNum(data?.kpis?.total_launcher_hours);
+  const totalExternalHours = safeNum(data?.kpis?.total_external_app_hours);
+  const totalClicks = safeNum(data?.kpis?.total_app_clicks ?? data?.kpis?.total_clicks);
+  const activeTvs = safeNum(data?.kpis?.active_tvs ?? data?.kpis?.active_tvs_count);
+  const mostPopularApp = data?.kpis?.most_popular_app;
+  const mostActiveRoom = data?.kpis?.most_active_room;
 
   // Color map for known apps
   const getAppColor = (appName = '') => {
-    const lower = appName.toLowerCase();
+    const lower = (appName || '').toLowerCase();
     if (lower.includes('netflix')) return '#E50914';
     if (lower.includes('youtube')) return '#FF0000';
     if (lower.includes('prime')) return '#00A8E1';
@@ -105,23 +100,23 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
     if (!searchFilter.trim()) return data.room_summaries;
     const query = searchFilter.toLowerCase();
     return data.room_summaries.filter(r => 
-      (r.uh_number && r.uh_number.toLowerCase().includes(query)) ||
-      (r.guest_name && r.guest_name.toLowerCase().includes(query)) ||
-      (r.tv_name && r.tv_name.toLowerCase().includes(query))
+      (r.uh_number && String(r.uh_number).toLowerCase().includes(query)) ||
+      (r.guest_name && String(r.guest_name).toLowerCase().includes(query)) ||
+      (r.tv_name && String(r.tv_name).toLowerCase().includes(query))
     );
   }, [data?.room_summaries, searchFilter]);
 
   // Hourly distribution max for normalization
   const maxHourlyVal = useMemo(() => {
-    if (!data?.hourly_distribution) return 1;
-    const vals = data.hourly_distribution.map(h => h.interactions_count);
+    if (!data?.hourly_distribution || data.hourly_distribution.length === 0) return 1;
+    const vals = data.hourly_distribution.map(h => safeNum(h.count ?? h.interactions_count));
     return Math.max(...vals, 1);
   }, [data?.hourly_distribution]);
 
   // Daily trend max for normalization
   const maxDailyHours = useMemo(() => {
-    if (!data?.daily_trend) return 1;
-    const vals = data.daily_trend.map(d => d.screen_on_hours);
+    if (!data?.daily_trend || data.daily_trend.length === 0) return 1;
+    const vals = data.daily_trend.map(d => safeNum(d.screen_hours ?? d.screen_on_hours));
     return Math.max(...vals, 1);
   }, [data?.daily_trend]);
 
@@ -252,7 +247,7 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
           </div>
           <div>
             <div className="stat-value" style={{ fontSize: '1.75rem', fontWeight: 700 }}>
-              {kpis.total_screen_on_hours.toFixed(1)}h
+              {totalScreenHours.toFixed(1)}h
             </div>
             <div className="stat-label">Total de Tela Ligada</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -268,12 +263,12 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
           </div>
           <div>
             <div className="stat-value" style={{ fontSize: '1.75rem', fontWeight: 700 }}>
-              {kpis.total_launcher_hours.toFixed(1)}h
+              {totalLauncherHours.toFixed(1)}h
             </div>
             <div className="stat-label">Launcher Fasano Ativa</div>
             <div style={{ fontSize: '0.72rem', color: '#10b981', marginTop: 4 }}>
-              {kpis.total_screen_on_hours > 0 
-                ? `${Math.round((kpis.total_launcher_hours / kpis.total_screen_on_hours) * 100)}% de exposição da marca` 
+              {totalScreenHours > 0 
+                ? `${Math.round((totalLauncherHours / totalScreenHours) * 100)}% de exposição da marca` 
                 : '100% no launcher'}
             </div>
           </div>
@@ -286,7 +281,7 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
           </div>
           <div>
             <div className="stat-value" style={{ fontSize: '1.75rem', fontWeight: 700 }}>
-              {kpis.total_external_app_hours.toFixed(1)}h
+              {totalExternalHours.toFixed(1)}h
             </div>
             <div className="stat-label">Streaming & HDMI SKY</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -302,12 +297,12 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
           </div>
           <div>
             <div className="stat-value" style={{ fontSize: '1.75rem', fontWeight: 700 }}>
-              {kpis.total_app_clicks}
+              {totalClicks}
             </div>
             <div className="stat-label">Total de Interações / Cliques</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
-              {kpis.active_tvs_count > 0 
-                ? `Média de ${(kpis.total_app_clicks / kpis.active_tvs_count).toFixed(1)} por TV ativa` 
+              {activeTvs > 0 
+                ? `Média de ${(totalClicks / activeTvs).toFixed(1)} por TV ativa` 
                 : 'Nenhum clique registrado'}
             </div>
           </div>
@@ -320,11 +315,11 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
           </div>
           <div>
             <div className="stat-value" style={{ fontSize: '1.4rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {kpis.most_popular_app ? kpis.most_popular_app.name : '—'}
+              {mostPopularApp ? (mostPopularApp.app_name || mostPopularApp.name || '—') : '—'}
             </div>
             <div className="stat-label">App Mais Clicado</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
-              {kpis.most_popular_app ? `${kpis.most_popular_app.clicks} acessos de hóspedes` : 'Sem dados'}
+              {mostPopularApp && mostPopularApp.clicks > 0 ? `${mostPopularApp.clicks} acessos de hóspedes` : 'Sem acessos registrados'}
             </div>
           </div>
         </div>
@@ -336,11 +331,11 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
           </div>
           <div>
             <div className="stat-value" style={{ fontSize: '1.4rem', fontWeight: 700 }}>
-              {kpis.most_active_room ? `UH ${kpis.most_active_room.uh}` : '—'}
+              {mostActiveRoom && mostActiveRoom.uh && mostActiveRoom.uh !== '-' ? `UH ${mostActiveRoom.uh}` : '—'}
             </div>
             <div className="stat-label">UH com Maior Uso</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
-              {kpis.most_active_room ? `${kpis.most_active_room.hours.toFixed(1)}h de uso ativo` : 'Sem dados'}
+              {mostActiveRoom && safeNum(mostActiveRoom.hours) > 0 ? `${safeNum(mostActiveRoom.hours).toFixed(1)}h de uso ativo` : 'Sem dados'}
             </div>
           </div>
         </div>
@@ -377,9 +372,9 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {data.app_ranking.slice(0, 8).map((app, index) => {
-                const totalClicks = kpis.total_app_clicks || 1;
-                const percentage = Math.min(100, Math.round((app.total_clicks / totalClicks) * 100));
-                const barColor = getAppColor(app.app_name);
+                const clicks = safeNum(app.clicks ?? app.total_clicks);
+                const percentage = safeNum(app.percentage, totalClicks > 0 ? Math.round((clicks / totalClicks) * 100) : 0);
+                const barColor = app.color || getAppColor(app.app_name);
 
                 return (
                   <div key={app.package_name + index}>
@@ -402,13 +397,10 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
                         <span style={{ fontSize: '0.86rem', fontWeight: 600, color: '#f8fafc' }}>
                           {app.app_name}
                         </span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          ({app.unique_rooms_count} {app.unique_rooms_count === 1 ? 'quarto' : 'quartos'})
-                        </span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{ fontSize: '0.85rem', fontWeight: 700, color: barColor }}>
-                          {app.total_clicks} {app.total_clicks === 1 ? 'clique' : 'cliques'}
+                          {clicks} {clicks === 1 ? 'clique' : 'cliques'}
                         </span>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', width: 36, textAlign: 'right' }}>
                           {percentage}%
@@ -467,12 +459,13 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
               paddingBottom: 8,
               borderBottom: '1px solid var(--border-subtle)'
             }}>
-              {(data?.hourly_distribution || Array.from({ length: 24 }, (_, i) => ({ hour: i, interactions_count: 0 }))).map(h => {
-                const heightPct = Math.max(8, Math.round((h.interactions_count / maxHourlyVal) * 100));
+              {(data?.hourly_distribution || Array.from({ length: 24 }, (_, i) => ({ hour: `${i.toString().padStart(2, '0')}h`, count: 0 }))).map(h => {
+                const count = safeNum(h.count ?? h.interactions_count);
+                const heightPct = Math.max(8, Math.round((count / maxHourlyVal) * 100));
                 const isPeak = heightPct > 65;
                 const barColor = isPeak 
                   ? 'linear-gradient(180deg, #38bdf8 0%, #0284c7 100%)' 
-                  : h.interactions_count > 0 
+                  : count > 0 
                     ? 'linear-gradient(180deg, rgba(56, 189, 248, 0.6) 0%, rgba(2, 132, 199, 0.3) 100%)' 
                     : 'rgba(255, 255, 255, 0.05)';
 
@@ -486,7 +479,7 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
                       height: '100%',
                       justifyContent: 'flex-end'
                     }}
-                    title={`${h.hour.toString().padStart(2, '0')}:00h - ${h.interactions_count} interações`}
+                    title={`${h.hour} - ${count} interações`}
                   >
                     <div style={{
                       width: '100%',
@@ -539,7 +532,7 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
       </div>
 
       {/* CHART 3: DAILY TREND (LAST 7-14 DAYS) */}
-      {data?.daily_trend && data.daily_trend.length > 1 && (
+      {data?.daily_trend && data.daily_trend.length > 0 && (
         <div className="glass-card" style={{ padding: 24, marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>
@@ -563,11 +556,12 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
             borderBottom: '1px solid var(--border-subtle)'
           }}>
             {data.daily_trend.map(d => {
-              const heightPct = Math.max(10, Math.round((d.screen_on_hours / maxDailyHours) * 100));
+              const screenHours = safeNum(d.screen_hours ?? d.screen_on_hours);
+              const heightPct = Math.max(10, Math.round((screenHours / maxDailyHours) * 100));
               return (
                 <div key={d.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
                   <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#34d399', marginBottom: 4 }}>
-                    {d.screen_on_hours.toFixed(1)}h
+                    {screenHours.toFixed(1)}h
                   </span>
                   <div style={{
                     width: '100%',
@@ -589,7 +583,7 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
           }}>
             {data.daily_trend.map(d => (
               <div key={d.date} style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', fontWeight: 600 }}>
-                {d.date.substring(5)}
+                {d.label || (d.date ? d.date.substring(5) : '')}
               </div>
             ))}
           </div>
@@ -687,9 +681,10 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
                 </thead>
                 <tbody>
                   {filteredRooms.map((r, i) => {
-                    const screenHrs = (r.screen_on_seconds / 3600).toFixed(1);
-                    const launcherPct = r.screen_on_seconds > 0 
-                      ? Math.round((r.launcher_active_seconds / r.screen_on_seconds) * 100)
+                    const screenHrs = safeNum(r.screen_hours);
+                    const launcherHrs = safeNum(r.launcher_hours);
+                    const launcherPct = screenHrs > 0 
+                      ? Math.min(100, Math.round((launcherHrs / screenHrs) * 100))
                       : 100;
 
                     return (
@@ -753,7 +748,7 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
                         </td>
 
                         <td style={{ padding: '14px', fontWeight: 600, color: '#e2e8f0' }}>
-                          {formatTime(r.screen_on_seconds)}
+                          {screenHrs.toFixed(1)}h
                         </td>
 
                         <td style={{ padding: '14px', minWidth: 160 }}>
@@ -778,7 +773,7 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
                         </td>
 
                         <td style={{ padding: '14px' }}>
-                          {r.most_clicked_app ? (
+                          {r.top_app && r.top_app !== 'N/A' ? (
                             <span style={{
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -788,9 +783,9 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
                               background: 'rgba(255,255,255,0.06)',
                               fontSize: '0.78rem',
                               fontWeight: 600,
-                              color: getAppColor(r.most_clicked_app)
+                              color: getAppColor(r.top_app)
                             }}>
-                              {r.most_clicked_app}
+                              {r.top_app}
                             </span>
                           ) : (
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>—</span>
@@ -798,7 +793,7 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
                         </td>
 
                         <td style={{ padding: '14px', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                          {r.total_clicks}
+                          {safeNum(r.app_clicks)}
                         </td>
                       </tr>
                     );
@@ -830,14 +825,15 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
                 </thead>
                 <tbody>
                   {data.guest_stays.map((stay, i) => {
-                    const checkInStr = stay.check_in ? new Date(stay.check_in).toLocaleDateString('pt-BR') : '—';
-                    const checkOutStr = stay.check_out ? new Date(stay.check_out).toLocaleDateString('pt-BR') : 'Presente';
-                    const totalSec = stay.screen_on_seconds || 0;
-                    const launcherPct = totalSec > 0 ? Math.round((stay.launcher_active_seconds / totalSec) * 100) : 100;
+                    const checkInStr = stay.first_seen ? new Date(stay.first_seen).toLocaleDateString('pt-BR') : '—';
+                    const checkOutStr = stay.last_seen ? new Date(stay.last_seen).toLocaleDateString('pt-BR') : 'Presente';
+                    const screenHrs = safeNum(stay.screen_hours);
+                    const launcherHrs = safeNum(stay.launcher_hours);
+                    const launcherPct = screenHrs > 0 ? Math.min(100, Math.round((launcherHrs / screenHrs) * 100)) : 100;
 
                     return (
                       <tr 
-                        key={stay.id || i}
+                        key={stay.uh_number + (stay.guest_name || '') + i}
                         style={{
                           borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
                           fontSize: '0.85rem'
@@ -871,7 +867,7 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
                         </td>
 
                         <td style={{ padding: '14px', fontWeight: 600, color: '#e2e8f0' }}>
-                          {formatTime(totalSec)}
+                          {screenHrs.toFixed(1)}h
                         </td>
 
                         <td style={{ padding: '14px', minWidth: 160 }}>
@@ -904,10 +900,10 @@ export default function AnalyticsDashboardView({ tvs = [] }) {
                             borderRadius: 6,
                             fontSize: '0.72rem',
                             fontWeight: 600,
-                            background: stay.is_active ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.1)',
-                            color: stay.is_active ? '#34d399' : '#94a3b8'
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            color: '#34d399'
                           }}>
-                            {stay.is_active ? 'Hóspede no Quarto' : 'Check-out Realizado'}
+                            Estadia Registrada
                           </span>
                         </td>
                       </tr>

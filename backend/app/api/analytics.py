@@ -411,11 +411,14 @@ async def get_analytics_overview(
         "period": period,
         "kpis": {
             "total_screen_hours": round(total_screen_sec / 3600.0, 1),
+            "total_screen_on_hours": round(total_screen_sec / 3600.0, 1),
             "total_launcher_hours": round(total_launcher_sec / 3600.0, 1),
             "total_external_app_hours": round(total_external_sec / 3600.0, 1),
             "total_app_clicks": total_clicks,
+            "total_clicks": total_clicks,
             "monitored_tvs": len(all_tvs),
             "active_tvs": active_tvs,
+            "active_tvs_count": active_tvs,
             "most_popular_app": most_popular_app,
             "most_active_room": most_active_room
         },
