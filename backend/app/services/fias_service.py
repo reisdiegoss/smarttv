@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
-from app.models.schema import SmartTV, DeviceLog
+from app.models.schema import SmartTV, DeviceLog, TVUsageSession
 
 logger = logging.getLogger("FIASService")
 
@@ -693,6 +693,28 @@ class FIASService:
                         log_msg = f"PMS Diff: UH {clean_uh} [{clean_old or 'Vago'} -> {clean_new or 'Vago'}]"
                         log = DeviceLog(tv_id=target_tv.id, event_type=f"PMS_{action_name}", message=log_msg)
                         session.add(log)
+
+                        # Atualiza ciclo de telemetria analítica do hóspede
+                        if guest_changed:
+                            open_sess_res = await session.execute(
+                                select(TVUsageSession).where(
+                                    TVUsageSession.tv_id == target_tv.id,
+                                    TVUsageSession.ended_at == None
+                                )
+                            )
+                            for s in open_sess_res.scalars().all():
+                                s.ended_at = datetime.utcnow()
+
+                            if is_checkin and clean_new:
+                                new_stay_sess = TVUsageSession(
+                                    tv_id=target_tv.id,
+                                    uh_number=clean_uh,
+                                    guest_name=clean_new,
+                                    session_date=datetime.utcnow().strftime("%Y-%m-%d"),
+                                    started_at=datetime.utcnow(),
+                                    last_ping_at=datetime.utcnow()
+                                )
+                                session.add(new_stay_sess)
 
                         await session.commit()
 

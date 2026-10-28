@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
-from app.models.schema import SmartTV, TVGroup, LayoutPreset, Playlist, PlaylistItem, AppShortcut, DeviceLog
+from app.models.schema import SmartTV, TVGroup, LayoutPreset, Playlist, PlaylistItem, AppShortcut, DeviceLog, TVUsageSession
 from app.services.audit import record_audit_log
 from app.services.weather_service import weather_service
 from app.models.dto import (
@@ -634,6 +634,51 @@ async def tv_ping(payload: SmartTVPingRequest, request: Request, db: AsyncSessio
             )
             db.add(log)
 
+    # Telemetria de Uso da TV (Tempo Ligada / Launcher Ativa)
+    is_on = payload.is_screen_on if payload.is_screen_on is not None else True
+    delta_screen = max(0, min(payload.screen_on_seconds or (30 if is_on else 0), 120)) if is_on else 0
+    delta_launcher = max(0, min(payload.launcher_active_seconds or delta_screen, delta_screen)) if is_on else 0
+    delta_external = max(0, delta_screen - delta_launcher)
+
+    if delta_screen > 0:
+        current_uh = tv.uh_number or (tv.custom_settings or {}).get("uh_number") or ""
+        current_guest = tv.guest_name or (tv.custom_settings or {}).get("guest_name") or "Quarto Vago"
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+
+        sess_res = await db.execute(
+            select(TVUsageSession)
+            .where(
+                TVUsageSession.tv_id == tv.id,
+                TVUsageSession.ended_at == None,
+                TVUsageSession.session_date == today_str
+            )
+            .order_by(TVUsageSession.id.desc())
+        )
+        usage_sess = sess_res.scalars().first()
+
+        if usage_sess and (usage_sess.guest_name != current_guest or usage_sess.session_date != today_str):
+            usage_sess.ended_at = datetime.utcnow()
+            usage_sess = None
+
+        if not usage_sess:
+            usage_sess = TVUsageSession(
+                tv_id=tv.id,
+                uh_number=current_uh,
+                guest_name=current_guest,
+                session_date=today_str,
+                screen_on_seconds=delta_screen,
+                launcher_active_seconds=delta_launcher,
+                external_app_seconds=delta_external,
+                started_at=datetime.utcnow(),
+                last_ping_at=datetime.utcnow()
+            )
+            db.add(usage_sess)
+        else:
+            usage_sess.screen_on_seconds += delta_screen
+            usage_sess.launcher_active_seconds += delta_launcher
+            usage_sess.external_app_seconds += delta_external
+            usage_sess.last_ping_at = datetime.utcnow()
+
     effective_updated_at = tv.updated_at
     if tv.group and tv.group.updated_at:
         if not effective_updated_at or tv.group.updated_at > effective_updated_at:
@@ -1067,6 +1112,14 @@ async def adb_clear_apps_by_device(device_id: str, request: Request, db: AsyncSe
 
 
 # ──── LOGS INDIVIDUAIS POR TV ────────────────────────────────────────────────
+def _to_utc_iso(dt: Optional[datetime]) -> Optional[str]:
+    if not dt:
+        return None
+    s = dt.isoformat()
+    if not s.endswith("Z") and "+" not in s and "-" not in s[10:]:
+        return f"{s}Z"
+    return s
+
 @router.get("/{tv_id}/logs")
 async def get_tv_logs(
     tv_id: int,
@@ -1093,7 +1146,7 @@ async def get_tv_logs(
             "tv_id": log.tv_id,
             "event_type": log.event_type,
             "message": log.message,
-            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "created_at": _to_utc_iso(log.created_at),
         }
         for log in logs
     ]

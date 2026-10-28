@@ -12,8 +12,12 @@ const EVENT_META = {
   PAIR:               { color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)',  icon: Monitor,        label: 'Pareamento' },
   BIND:               { color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.12)',  icon: HardDrive,      label: 'Vinculação' },
   ASSIGN:             { color: '#818cf8', bg: 'rgba(129, 140, 248, 0.12)', icon: HardDrive,      label: 'Atribuição' },
+  PMS_CHECK_IN:       { color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)',  icon: CheckCircle2,   label: 'Check-in PMS' },
   PMS_CHECKIN:        { color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)',  icon: CheckCircle2,   label: 'Check-in PMS' },
+  PMS_CHECK_OUT:      { color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)',  icon: AlertTriangle,  label: 'Check-out PMS' },
   PMS_CHECKOUT:       { color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)',  icon: AlertTriangle,  label: 'Check-out PMS' },
+  PMS_AUTO_CREATE_UH: { color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.12)',  icon: Monitor,        label: 'Auto Criação UH' },
+  UNPAIR:             { color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.12)',   icon: Trash2,         label: 'Despareamento' },
   PMS_ROOM_UPDATE:    { color: '#fb923c', bg: 'rgba(251, 146, 60, 0.12)',  icon: FileText,       label: 'Update PMS' },
   PMS_SYNC:           { color: '#c084fc', bg: 'rgba(192, 132, 252, 0.12)', icon: RefreshCw,      label: 'Sync PMS' },
   APP_CLEANUP:        { color: '#f472b6', bg: 'rgba(244, 114, 182, 0.12)', icon: Trash2,         label: 'Limpeza Apps' },
@@ -30,10 +34,22 @@ function getEventMeta(eventType) {
   return EVENT_META[eventType] || DEFAULT_META;
 }
 
+function parseDate(dateStr) {
+  if (!dateStr) return null;
+  let s = String(dateStr).trim();
+  // Se for naive ISO timestamp (sem Z nem offset +/-), trata como UTC (padrão do banco)
+  if (!s.endsWith('Z') && !s.includes('+') && !s.slice(10).includes('-')) {
+    s = s.replace(' ', 'T') + 'Z';
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function formatDateTime(dateStr) {
   if (!dateStr) return '—';
   try {
-    const d = new Date(dateStr);
+    const d = parseDate(dateStr);
+    if (!d) return dateStr;
     return d.toLocaleString('pt-BR', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -44,9 +60,15 @@ function formatDateTime(dateStr) {
 function formatTimeAgo(dateStr) {
   if (!dateStr) return '';
   try {
+    const d = parseDate(dateStr);
+    if (!d) return '';
     const now = new Date();
-    const d = new Date(dateStr);
-    const diffMs = now - d;
+    const diffMs = now.getTime() - d.getTime();
+    
+    // Pequena margem para leves divergências de relógio entre cliente e servidor
+    if (diffMs < 60000 && diffMs > -60000) return 'agora';
+    if (diffMs <= -60000) return 'agora';
+
     const diffMin = Math.floor(diffMs / 60000);
     if (diffMin < 1) return 'agora';
     if (diffMin < 60) return `${diffMin}min atrás`;

@@ -71,8 +71,33 @@ def get_pms_status():
     return fias_service.get_status()
 
 @router.post("/test-connection")
-def test_ifc8_connection(host: str = "192.168.162.18", port: int = 5020):
-    """Testa a conectividade direta TCP com a porta FIAS do servidor IFC8"""
+async def test_ifc8_connection(host: str = "192.168.162.18", port: int = 5020):
+    """Testa a conectividade com o servidor IFC8 sem derrubar a conexão socket ativa"""
+    # Se o serviço FIAS já possui uma conexão socket ativa com este mesmo host e porta:
+    if fias_service.is_connected and fias_service.host == host and fias_service.port == port:
+        now = datetime.utcnow()
+        last_hb = fias_service.last_heartbeat
+        sec_ago = int((now - last_hb).total_seconds()) if last_hb else 0
+        
+        # Envia um Link Alive (LA) de verificação através da conexão existente
+        try:
+            now_dt = datetime.now()
+            da = now_dt.strftime("%y%m%d")
+            ti = now_dt.strftime("%H%M%S")
+            await fias_service._send_packet(f"LA|DA{da}|TI{ti}|")
+        except Exception:
+            pass
+
+        return {
+            "status": "success",
+            "host": host,
+            "port": port,
+            "latency_ms": 0,
+            "banner": f"Sessão FIAS ativa ({fias_service.packets_recv_count} pacotes recebidos, {fias_service.packets_sent_count} enviados)",
+            "message": f"Conexão socket com servidor IFC8 {host}:{port} já está ativa e sincronizada! (Último evento há {sec_ago}s)"
+        }
+
+    # Se NÃO estiver conectado (ou testando outro host/porta), testa socket TCP direto:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(4.0)
@@ -86,6 +111,10 @@ def test_ifc8_connection(host: str = "192.168.162.18", port: int = 5020):
             banner = repr(raw)
         except Exception:
             banner = "Conectado (sem banner imediato)"
+        try:
+            s.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
         s.close()
 
         return {
@@ -273,7 +302,7 @@ async def request_pms_resync(payload: PMSResyncRequest, request: Request, db: As
         "status": "success",
         "message": f"Comando Database Resync (DR) enviado com sucesso ao IFC8 em 192.168.162.18:5020. Os hóspedes serão atualizados em tempo real.",
         "target": payload.room_number or "ALL",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
 @router.post("/sync-uh")

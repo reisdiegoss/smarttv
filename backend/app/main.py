@@ -16,6 +16,7 @@ from app.api.tvs import router as tvs_router
 from app.api.groups import router as groups_router
 from app.api.pms import router as pms_router
 from app.api.auth import router as auth_router
+from app.api.analytics import router as analytics_router
 from app.services.audit import hash_password
 from app.services.fias_service import fias_service
 
@@ -336,6 +337,7 @@ app.include_router(media_router, prefix=settings.API_V1_STR)
 app.include_router(playlists_router, prefix=settings.API_V1_STR)
 app.include_router(layouts_router, prefix=settings.API_V1_STR)
 app.include_router(shortcuts_router, prefix=settings.API_V1_STR)
+app.include_router(analytics_router, prefix=settings.API_V1_STR)
 
 # WebSocket for real-time dashboard events
 @app.websocket("/ws/tvs")

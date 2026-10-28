@@ -229,6 +229,16 @@ class SmartTVPingRequest(BaseModel):
     free_storage_mb: Optional[int] = None
     current_playing_media_id: Optional[int] = None
     cleanup_completed: Optional[bool] = None
+    screen_on_seconds: Optional[int] = 0
+    launcher_active_seconds: Optional[int] = 0
+    is_screen_on: Optional[bool] = True
+
+class AppClickEventRequest(BaseModel):
+    device_id: str
+    package_name: str
+    app_name: str
+    shortcut_id: Optional[int] = None
+    action_type: Optional[str] = "CLICK"
 
 class SmartTVBindRequest(BaseModel):
     tv_id: int

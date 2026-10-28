@@ -215,46 +215,68 @@ async def delete_group(group_id: int, request: Request, db: AsyncSession = Depen
 
 @router.post("/{group_id}/bulk-assign")
 async def bulk_assign_tvs_to_group(group_id: int, payload: BulkAssignGroupRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    """Atribui em massa uma lista de TVs a este grupo com herança instantânea"""
+    """Atribui em massa uma lista de TVs a este grupo com herança instantânea e desvincula as desmarcadas"""
     stmt = select(TVGroup).where(TVGroup.id == group_id)
     result = await db.execute(stmt)
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Grupo não encontrado")
 
-    if not payload.tv_ids:
-        return {"status": "ok", "message": "Nenhuma TV informada para atribuição", "count": 0}
-
-    tvs_res = await db.execute(select(SmartTV).where(SmartTV.id.in_(payload.tv_ids)))
-    assigned_tvs = tvs_res.scalars().all()
+    target_tv_ids = set(payload.tv_ids or [])
     now_utc = datetime.utcnow()
 
-    for tv in assigned_tvs:
-        tv.group_id = group_id
-        tv.layout_id = group.layout_id
-        tv.playlist_id = group.playlist_id
-        tv.hdmi_input_id = group.hdmi_input_id
-        tv.hdmi_label = group.hdmi_label
-        tv.selected_shortcuts = list(group.selected_shortcuts or [])
+    # 1. Buscar todas as TVs atualmente vinculadas a este grupo
+    curr_tvs_res = await db.execute(select(SmartTV).where(SmartTV.group_id == group_id))
+    current_group_tvs = curr_tvs_res.scalars().all()
 
-        tc = dict(tv.custom_settings or {})
-        saved_uh = tv.uh_number or tc.get("uh_number")
-        saved_guest = tv.guest_name or tc.get("guest_name")
-        saved_status = tc.get("room_status")
-        saved_title = tc.get("welcome_title")
-        saved_cleanup = tc.get("checkout_cleanup_pending")
+    # 2. Desvincular TVs que pertenciam a este grupo mas foram desmarcadas no modal
+    unassigned_count = 0
+    for tv in current_group_tvs:
+        if tv.id not in target_tv_ids:
+            tv.group_id = None
+            tv.updated_at = now_utc
+            unassigned_count += 1
 
-        if group.custom_settings:
-            tc.update(dict(group.custom_settings))
+    # 3. Vincular e propagar configurações para as TVs marcadas
+    assigned_count = 0
+    if target_tv_ids:
+        tvs_res = await db.execute(select(SmartTV).where(SmartTV.id.in_(target_tv_ids)))
+        assigned_tvs = tvs_res.scalars().all()
 
-        if saved_uh: tc["uh_number"] = saved_uh
-        if saved_guest: tc["guest_name"] = saved_guest
-        if saved_status: tc["room_status"] = saved_status
-        if saved_title: tc["welcome_title"] = saved_title
-        if saved_cleanup is not None: tc["checkout_cleanup_pending"] = saved_cleanup
+        for tv in assigned_tvs:
+            tv.group_id = group_id
+            tv.layout_id = group.layout_id
+            tv.playlist_id = group.playlist_id
+            tv.hdmi_input_id = group.hdmi_input_id
+            tv.hdmi_label = group.hdmi_label
+            tv.selected_shortcuts = list(group.selected_shortcuts or [])
 
-        tv.custom_settings = tc
-        tv.updated_at = now_utc
+            tc = dict(tv.custom_settings or {})
+            saved_uh = tv.uh_number or tc.get("uh_number")
+            saved_guest = tv.guest_name or tc.get("guest_name")
+            saved_status = tc.get("room_status")
+            saved_title = tc.get("welcome_title")
+            saved_cleanup = tc.get("checkout_cleanup_pending")
+
+            if group.custom_settings:
+                tc.update(dict(group.custom_settings))
+
+            if saved_uh: tc["uh_number"] = saved_uh
+            if saved_guest: tc["guest_name"] = saved_guest
+            if saved_status: tc["room_status"] = saved_status
+            if saved_title: tc["welcome_title"] = saved_title
+            if saved_cleanup is not None: tc["checkout_cleanup_pending"] = saved_cleanup
+
+            tv.custom_settings = tc
+            tv.updated_at = now_utc
+            assigned_count += 1
+
+    desc_parts = []
+    if assigned_count > 0:
+        desc_parts.append(f"{assigned_count} TV(s) vinculadas")
+    if unassigned_count > 0:
+        desc_parts.append(f"{unassigned_count} TV(s) desvinculadas")
+    description = ", ".join(desc_parts) if desc_parts else "Nenhuma alteração realizada"
 
     await record_audit_log(
         db=db,
@@ -263,15 +285,17 @@ async def bulk_assign_tvs_to_group(group_id: int, payload: BulkAssignGroupReques
         entity="TVGroup",
         entity_id=str(group.id),
         entity_name=group.name,
-        description=f"{len(payload.tv_ids)} TV(s) vinculadas em massa ao grupo '{group.name}'"
+        description=f"{description} no grupo '{group.name}'"
     )
 
     await db.commit()
     return {
         "status": "ok",
-        "message": f"{len(payload.tv_ids)} TV(s) vinculadas com sucesso ao grupo '{group.name}'",
+        "message": f"{assigned_count} TV(s) vinculadas e {unassigned_count} TV(s) removidas do grupo '{group.name}'",
         "group_id": group_id,
-        "tv_ids": payload.tv_ids
+        "tv_ids": list(target_tv_ids),
+        "assigned_count": assigned_count,
+        "unassigned_count": unassigned_count
     }
 
 @router.post("/seed-defaults")

@@ -4,7 +4,7 @@ import {
   Settings, CheckCircle2, AlertCircle, Wifi, Play, Edit, 
   Trash2, QrCode, HardDrive, Eye, ExternalLink, Cpu,
   Shield, Download, LogOut, User as UserIcon, Send,
-  FolderTree, Building2, ChevronDown, FileText
+  FolderTree, Building2, ChevronDown, FileText, BarChart3
 } from 'lucide-react';
 
 import TVSimulator from './components/TVSimulator';
@@ -19,6 +19,7 @@ import GroupsView from './components/GroupsView';
 import PMSIntegrationView from './components/PMSIntegrationView';
 import ShortcutsView from './components/ShortcutsView';
 import DeviceLogsModal from './components/DeviceLogsModal';
+import AnalyticsDashboardView from './components/AnalyticsDashboardView';
 
 export default function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('smarttv_token'));
@@ -383,6 +384,12 @@ export default function App() {
             <Tv size={18} /> Smart TVs ({totalTvs})
           </div>
           <div 
+            className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
+            onClick={() => setActiveTab('analytics')}
+          >
+            <BarChart3 size={18} /> Analytics & BI
+          </div>
+          <div 
             className={`nav-item ${activeTab === 'pms' ? 'active' : ''}`}
             onClick={() => setActiveTab('pms')}
           >
@@ -456,6 +463,7 @@ export default function App() {
               {activeTab === 'dashboard' && 'Painel de Controle'}
               {activeTab === 'groups' && 'Perfis & Grupos de TV com Herança'}
               {activeTab === 'tvs' && 'Gerenciamento de Smart TVs'}
+              {activeTab === 'analytics' && 'Indicadores & Business Intelligence (BI)'}
               {activeTab === 'pms' && 'Integração Hospitality PMS (IFC8 / FIAS)'}
               {activeTab === 'simulator' && 'Simulador em Tempo Real da TV'}
               {activeTab === 'playlists' && 'Playlists & Mídias de Vídeo'}
@@ -467,6 +475,7 @@ export default function App() {
               {activeTab === 'dashboard' && 'Status das TVs na rede, reprodução de vídeo e controle individualizado.'}
               {activeTab === 'groups' && 'Crie padrões de layout, playlist e HDMI para Lobby, Quartos e Vista Mar com herança.'}
               {activeTab === 'tvs' && 'Configure o nome, playlist, atalhos de apps e HDMI individual de cada TV.'}
+              {activeTab === 'analytics' && 'Métricas de engajamento, tempo de tela por hóspede, ranking de aplicativos e picos de audiência.'}
               {activeTab === 'pms' && 'Servidor IFC8 (192.168.162.18) integrando Thexpos, Vingcard e Leucotron em tempo real.'}
               {activeTab === 'simulator' && 'Teste e interaja com a Launcher exatamente como o hóspede/cliente vê na TV.'}
               {activeTab === 'playlists' && 'Gerencie os vídeos MP4 que rodam em sequência contínua no APK.'}
@@ -562,8 +571,8 @@ export default function App() {
                   >
                     <Download size={16} color="#38bdf8" />
                     <div>
-                      <div>Baixar Versão Oficial (v1.1.3)</div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>fasano-smarttv-v1.1.3.apk</div>
+                      <div>Baixar Versão Oficial (v1.1.4)</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>fasano-smarttv-v1.1.4.apk</div>
                     </div>
                   </a>
 
@@ -1371,6 +1380,11 @@ export default function App() {
         {/* VIEW 7: AUDIT TRAIL */}
         {activeTab === 'audit' && (
           <AuditTrailView />
+        )}
+
+        {/* VIEW 8: ANALYTICS & BI DASHBOARD */}
+        {activeTab === 'analytics' && (
+          <AnalyticsDashboardView tvs={tvs} />
         )}
       </main>
 

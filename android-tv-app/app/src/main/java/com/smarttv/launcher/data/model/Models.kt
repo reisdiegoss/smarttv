@@ -81,7 +81,18 @@ data class PingRequest(
     @SerializedName("device_id") val deviceId: String,
     @SerializedName("ip_address") val ipAddress: String?,
     @SerializedName("app_version") val appVersion: String = "1.0.0",
-    @SerializedName("cleanup_completed") val cleanupCompleted: Boolean? = null
+    @SerializedName("cleanup_completed") val cleanupCompleted: Boolean? = null,
+    @SerializedName("screen_on_seconds") val screenOnSeconds: Int = 30,
+    @SerializedName("launcher_active_seconds") val launcherActiveSeconds: Int = 30,
+    @SerializedName("is_screen_on") val isScreenOn: Boolean = true
+)
+
+data class AppClickEventRequest(
+    @SerializedName("device_id") val deviceId: String,
+    @SerializedName("package_name") val packageName: String,
+    @SerializedName("app_name") val appName: String,
+    @SerializedName("shortcut_id") val shortcutId: Int? = null,
+    @SerializedName("action_type") val actionType: String = "CLICK"
 )
 
 data class TVListItem(

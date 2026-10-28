@@ -40,6 +40,9 @@ interface TVApiService {
     @POST("/api/tvs/by-device/{device_id}/adb-clear-apps")
     suspend fun requestAdbClearApps(@Path("device_id") deviceId: String): Map<String, Any>
 
+    @POST("/api/analytics/app-click")
+    suspend fun recordAppClick(@Body body: AppClickEventRequest): Map<String, Any>
+
     companion object {
         // IP padrão do servidor na rede local (configurável pelo app)
         private const val DEFAULT_BASE_URL = "http://192.168.168.27/"

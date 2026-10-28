@@ -2,6 +2,7 @@ package com.smarttv.launcher.ui
 
 import android.app.AlertDialog
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -11,6 +12,7 @@ import android.graphics.drawable.StateListDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
@@ -133,6 +135,8 @@ class MainActivity : AppCompatActivity() {
     private var currentLoadedMediaUrls: List<String> = emptyList()
     private var pendingCleanupReport = false
     private var hasLaunchedExternalApp = false
+    private var isLauncherResumed = true
+    private var lastHeartbeatTimeMs = 0L
     private var hasRequestedDefaultLauncherOnce = false
     private var isSwitchingRoom: Boolean = false
     private var homePressCount = 0
@@ -1686,6 +1690,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             btnSky.setOnClickListener {
+                trackAppClick(config.hdmi.label, "hdmi", null)
                 releasePlayerForExternalApp()
                 hasLaunchedExternalApp = true
                 HdmiInputManager.switchToHdmiInput(this, config.hdmi.inputId)
@@ -1753,6 +1758,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             btnApp.setOnClickListener {
+                trackAppClick(sc.name, sc.packageName, sc.id)
                 releasePlayerForExternalApp()
                 hasLaunchedExternalApp = true
                 AppLauncherManager.launchApp(this, sc.packageName)
@@ -1805,6 +1811,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             btnSky.setOnClickListener {
+                trackAppClick(config.hdmi.label, "hdmi", null)
                 releasePlayerForExternalApp()
                 hasLaunchedExternalApp = true
                 HdmiInputManager.switchToHdmiInput(this, config.hdmi.inputId)
@@ -1853,6 +1860,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             btnApp.setOnClickListener {
+                trackAppClick(sc.name, sc.packageName, sc.id)
                 releasePlayerForExternalApp()
                 hasLaunchedExternalApp = true
                 AppLauncherManager.launchApp(this, sc.packageName)
@@ -2025,6 +2033,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        isLauncherResumed = false
         try {
             playerView.onPause()
         } catch (e: Exception) {
@@ -2041,6 +2050,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        isLauncherResumed = true
         com.smarttv.launcher.service.LauncherAccessibilityService.isExitingAuthorized = false
         resumeVideoPlayback()
         if (hasLaunchedExternalApp) {
@@ -2143,16 +2153,50 @@ class MainActivity : AppCompatActivity() {
         view.background = stateList
     }
 
+    private fun trackAppClick(appName: String, packageName: String, shortcutId: Int? = null) {
+        val deviceId = SmartTVApp.instance.getTvDeviceId()
+        val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                api.recordAppClick(
+                    AppClickEventRequest(
+                        deviceId = deviceId,
+                        packageName = packageName,
+                        appName = appName,
+                        shortcutId = shortcutId
+                    )
+                )
+                Log.d(TAG, "Analytics: clique registrado para $appName ($packageName)")
+            } catch (e: Exception) {
+                Log.w(TAG, "Falha ao registrar clique no analytics: ${e.message}")
+            }
+        }
+    }
+
     /**
      * Heartbeat contínuo:
      * 1. Atualiza status Online no painel a cada 5s
      * 2. Se a TV for alterada no painel web (mudou HDMI, apps, layout, UH, vídeos), sincroniza quase que instantaneamente!
+     * 3. Envia métricas de uso de tela e launcher para BI
      */
     private fun startHeartbeatLoop() {
         handler.post(object : Runnable {
             override fun run() {
                 val deviceId = SmartTVApp.instance.getTvDeviceId()
                 val api = TVApiService.create(SmartTVApp.instance.getServerUrl())
+
+                val now = System.currentTimeMillis()
+                val elapsedSeconds = if (lastHeartbeatTimeMs > 0L) {
+                    ((now - lastHeartbeatTimeMs) / 1000).toInt().coerceIn(1, 120)
+                } else {
+                    5
+                }
+                lastHeartbeatTimeMs = now
+
+                val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                val isDisplayInteractive = powerManager?.isInteractive ?: true
+                val screenSec = if (isDisplayInteractive) elapsedSeconds else 0
+                val launcherSec = if (isDisplayInteractive && isLauncherResumed) elapsedSeconds else 0
 
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
@@ -2162,7 +2206,10 @@ class MainActivity : AppCompatActivity() {
                                 deviceId = deviceId,
                                 ipAddress = null,
                                 appVersion = BuildConfig.VERSION_NAME,
-                                cleanupCompleted = reportCleanup
+                                cleanupCompleted = reportCleanup,
+                                screenOnSeconds = screenSec,
+                                launcherActiveSeconds = launcherSec,
+                                isScreenOn = isDisplayInteractive
                             )
                         )
                         if (reportCleanup == true) {

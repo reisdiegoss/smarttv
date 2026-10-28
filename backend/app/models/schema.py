@@ -194,6 +194,43 @@ class SmartTV(Base):
     layout = relationship("LayoutPreset", back_populates="tvs")
     playlist = relationship("Playlist", back_populates="tvs")
     logs = relationship("DeviceLog", back_populates="tv", cascade="all, delete-orphan")
+    usage_sessions = relationship("TVUsageSession", back_populates="tv", cascade="all, delete-orphan")
+    app_analytics = relationship("TVAppAnalytics", back_populates="tv", cascade="all, delete-orphan")
+
+
+class TVUsageSession(Base):
+    __tablename__ = "tv_usage_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tv_id = Column(Integer, ForeignKey("smart_tvs.id", ondelete="CASCADE"), nullable=False)
+    uh_number = Column(String(50), nullable=True, index=True)
+    guest_name = Column(String(150), nullable=True) # Nome do hóspede na estadia ou 'Quarto Vago'
+    screen_on_seconds = Column(Integer, default=0) # Segundos com tela ligada
+    launcher_active_seconds = Column(Integer, default=0) # Segundos com a launcher institucional ativa
+    external_app_seconds = Column(Integer, default=0) # Segundos consumindo streaming/HDMI
+    session_date = Column(String(10), nullable=True, index=True) # "YYYY-MM-DD" para agregações rápidas
+    started_at = Column(DateTime, default=datetime.utcnow)
+    ended_at = Column(DateTime, nullable=True) # Data de encerramento da estadia/sessão
+    last_ping_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    tv = relationship("SmartTV", back_populates="usage_sessions")
+
+
+class TVAppAnalytics(Base):
+    __tablename__ = "tv_app_analytics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tv_id = Column(Integer, ForeignKey("smart_tvs.id", ondelete="CASCADE"), nullable=False)
+    uh_number = Column(String(50), nullable=True, index=True)
+    guest_name = Column(String(150), nullable=True)
+    shortcut_id = Column(Integer, nullable=True)
+    package_name = Column(String(255), nullable=False) # e.g. "com.netflix.ninja", "action.hdmi"
+    app_name = Column(String(150), nullable=False) # "Netflix", "YouTube", "TV SKY"
+    action_type = Column(String(50), default="CLICK") # "CLICK", "HDMI_SWITCH"
+    clicked_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    tv = relationship("SmartTV", back_populates="app_analytics")
 
 
 class DeviceLog(Base):

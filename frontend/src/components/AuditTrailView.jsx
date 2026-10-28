@@ -51,7 +51,11 @@ export default function AuditTrailView() {
   const formatDateTime = (dateStr) => {
     if (!dateStr) return '—';
     try {
-      const d = new Date(dateStr);
+      let s = String(dateStr).trim();
+      if (!s.endsWith('Z') && !s.includes('+') && !s.slice(10).includes('-')) {
+        s = s.replace(' ', 'T') + 'Z';
+      }
+      const d = new Date(s);
       return d.toLocaleString('pt-BR', {
         day: '2-digit',
         month: '2-digit',

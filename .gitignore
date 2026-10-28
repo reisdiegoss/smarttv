@@ -37,6 +37,8 @@ android-tv-app/build/
 android-tv-app/app/build/
 *.apk
 !frontend/public/smarttv-launcher.apk
+!frontend/public/fasano-smarttv-latest.apk
+!frontend/public/fasano-smarttv-v1.1.4.apk
 *.aab
 local.properties
 
